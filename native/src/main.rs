@@ -28,23 +28,43 @@ use smithay::{
         output::OutputHandler,
     },
     output::{self, Output, PhysicalProperties, Subpixel},
-    delegate_compositor, delegate_shm, delegate_output,
+    input::{
+        pointer::PointerHandle,
+        keyboard::{KeyboardHandle, XkbConfig},
+        SeatState, SeatHandler
+    },
+    delegate_compositor, delegate_shm, delegate_output, delegate_seat,
 };
 
 pub struct WLCState {
     pub display_handle: DisplayHandle,
     pub compositor_state: CompositorState,
     pub shm_state: ShmState,
+    pub seat_state: SeatState<Self>,
     pub surfaces: Vec<WlSurface>,
+    pub pointer: PointerHandle<Self>,
+    pub keyboard: KeyboardHandle<Self>,
 }
 
 impl WLCState {
     pub fn new(disp: DisplayHandle) -> Self {
+        let compositor_state = CompositorState::new::<WLCState>(&disp);
+        let shm_state = ShmState::new::<WLCState>(&disp, vec![]);
+
+        let mut seat_handler = SeatState::<WLCState>::new();
+        let mut seat = seat_handler.new_wl_seat(&disp, "seat-0");
+        let pointer = seat.add_pointer();
+        let keyboard = seat.add_keyboard(XkbConfig::default(), 200, 25)
+            .expect("Keyboard create");
+
         Self {
             display_handle: disp.clone(),
-            compositor_state: CompositorState::new::<WLCState>(&disp),
-            shm_state: ShmState::new::<WLCState>(&disp, vec![]),
+            compositor_state,
+            shm_state,
+            seat_state: seat_handler,
             surfaces: vec![],
+            pointer,
+            keyboard,
         }
     }
 }
@@ -101,6 +121,16 @@ impl ShmHandler for WLCState {
 }
 
 impl OutputHandler for WLCState {}
+
+impl SeatHandler for WLCState {
+    type KeyboardFocus = WlSurface;
+    type PointerFocus = WlSurface;
+    type TouchFocus = WlSurface;
+
+    fn seat_state(&mut self) -> &mut SeatState<Self> {
+        &mut self.seat_state
+    }
+}
 
 pub struct WLCClient {
     compositor_state: CompositorClientState,
@@ -202,3 +232,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 delegate_compositor!(WLCState);
 delegate_shm!(WLCState);
 delegate_output!(WLCState);
+delegate_seat!(WLCState);
