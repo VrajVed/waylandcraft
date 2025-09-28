@@ -6,11 +6,7 @@ import java.util.function.Supplier;
 
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.system.MemoryUtil;
 
-import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -66,47 +62,28 @@ public class RenderUtils {
 		drawQuad(camera, OptionalInt.of(tex.getId()), shader, p1, p2, p3, p4, uv1, uv2, uv3, uv4, color, alpha);
 	}
 	
-	private static int testTexture = -1;
-	private static ByteBuffer testTextureData = null;
+	private static BufferTexture testTexture;
 	public static int getTestTexture(int offset) {
 		int width = 500;
 		int height = 500;
 		
-		if(testTextureData == null) {
-			testTextureData = ByteBuffer.allocateDirect(width * height * 4);
+		if(testTexture == null) {
+			ByteBuffer buf = ByteBuffer.allocateDirect(width * height * 4);
+			testTexture = new BufferTexture(buf, width, height);
 		}
 		
-		testTextureData.clear();
+		testTexture.data.clear();
 		for(int i = 0; i < width * height; i++) {
 			int j = i % width - offset;
 			int k = i / width;
 			// For little endian ARGB 0123, for big endian RGBA 2103
-			testTextureData.put(i * 4 + 0, (byte) (int) ((k / 50) * 50.0f / ((height / 50) * 50.0f) * 255.0f));
-			testTextureData.put(i * 4 + 1, (byte) ((k % 50) * 5));
-			testTextureData.put(i * 4 + 2, (byte) ((j % 50) * 5));
-			testTextureData.put(i * 4 + 3, (byte) 255);
+			testTexture.data.put(i * 4 + 0, (byte) (int) ((k / 50) * 50.0f / ((height / 50) * 50.0f) * 255.0f));
+			testTexture.data.put(i * 4 + 1, (byte) ((k % 50) * 5));
+			testTexture.data.put(i * 4 + 2, (byte) ((j % 50) * 5));
+			testTexture.data.put(i * 4 + 3, (byte) 255);
 		}
-		
-		if(testTexture < 0) {
-			testTexture = TextureUtil.generateTextureId();
-			GlStateManager._bindTexture(testTexture);
-			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAX_LEVEL, 0);
-			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_LOD, 0);
-			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAX_LOD, 0);
-			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_LOD_BIAS, 0.0F);
-			GlStateManager._texImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA8, width, height, 0, GL33.GL_BGRA, GL33.GL_UNSIGNED_INT_8_8_8_8_REV, null);
-		}
-		
-		GlStateManager._bindTexture(testTexture);
-		GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_NEAREST);
-		GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_NEAREST);
-		GlStateManager._pixelStore(GL33.GL_UNPACK_ROW_LENGTH, 0);
-		GlStateManager._pixelStore(GL33.GL_UNPACK_SKIP_PIXELS, 0);
-		GlStateManager._pixelStore(GL33.GL_UNPACK_SKIP_ROWS, 0);
-		GlStateManager._pixelStore(GL33.GL_UNPACK_ALIGNMENT, 4);
-		GlStateManager._texSubImage2D(GL33.GL_TEXTURE_2D, 0, 0, 0, width, height, GL33.GL_BGRA, GL33.GL_UNSIGNED_INT_8_8_8_8_REV, MemoryUtil.memAddress0(testTextureData));
-		
-		return testTexture;
+		testTexture.update();
+		return testTexture.getId();
 	}
 	
 	public static void drawTexturedQuad(Camera camera, ResourceLocation res, Vec3 p1, Vec3 p2, Vec3 p3, Vec3 p4, Vec2 uv1, Vec2 uv2, Vec2 uv3, Vec2 uv4) {
