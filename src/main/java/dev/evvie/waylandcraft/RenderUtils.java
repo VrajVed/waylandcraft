@@ -81,14 +81,11 @@ public class RenderUtils {
 			int j = i % width - offset;
 			int k = i / width;
 			// For little endian ARGB 0123, for big endian RGBA 2103
-			testTextureData.put(i * 4 + 2, (byte) (int) ((k / 50) * 50.0f / ((height / 50) * 50.0f) * 255.0f));
+			testTextureData.put(i * 4 + 0, (byte) (int) ((k / 50) * 50.0f / ((height / 50) * 50.0f) * 255.0f));
 			testTextureData.put(i * 4 + 1, (byte) ((k % 50) * 5));
-			testTextureData.put(i * 4 + 0, (byte) ((j % 50) * 5));
-			testTextureData.put(i * 4 + 3, (byte) 128);
+			testTextureData.put(i * 4 + 2, (byte) ((j % 50) * 5));
+			testTextureData.put(i * 4 + 3, (byte) 255);
 		}
-		
-		// TODO:Change format to ARGB
-		// glTexImage2D(GL_TEXTURE_2D, 0, GL33.GL_RGBA8, width, height, 0, GL33.GL_BGRA, GL33.GL_UNSIGNED_INT_8_8_8_8_REV, buf);
 		
 		if(testTexture < 0) {
 			testTexture = TextureUtil.generateTextureId();
@@ -97,7 +94,7 @@ public class RenderUtils {
 			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_LOD, 0);
 			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAX_LOD, 0);
 			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_LOD_BIAS, 0.0F);
-			GlStateManager._texImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA, width, height, 0, GL33.GL_RGBA, GL33.GL_UNSIGNED_BYTE, null);
+			GlStateManager._texImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA8, width, height, 0, GL33.GL_BGRA, GL33.GL_UNSIGNED_INT_8_8_8_8_REV, null);
 		}
 		
 		GlStateManager._bindTexture(testTexture);
@@ -106,8 +103,8 @@ public class RenderUtils {
 		GlStateManager._pixelStore(GL33.GL_UNPACK_ROW_LENGTH, 0);
 		GlStateManager._pixelStore(GL33.GL_UNPACK_SKIP_PIXELS, 0);
 		GlStateManager._pixelStore(GL33.GL_UNPACK_SKIP_ROWS, 0);
-		GlStateManager._pixelStore(GL33.GL_UNPACK_ALIGNMENT, 4); // 4 components RGBA
-		GlStateManager._texSubImage2D(GL33.GL_TEXTURE_2D, 0, 0, 0, width, height, GL33.GL_RGBA, GL33.GL_UNSIGNED_BYTE, MemoryUtil.memAddress0(testTextureData));
+		GlStateManager._pixelStore(GL33.GL_UNPACK_ALIGNMENT, 4);
+		GlStateManager._texSubImage2D(GL33.GL_TEXTURE_2D, 0, 0, 0, width, height, GL33.GL_BGRA, GL33.GL_UNSIGNED_INT_8_8_8_8_REV, MemoryUtil.memAddress0(testTextureData));
 		
 		return testTexture;
 	}
