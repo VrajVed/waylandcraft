@@ -4,7 +4,7 @@ use smithay::{
     wayland::{
         shell::xdg::ToplevelSurface,
         compositor::{
-            SurfaceData, SurfaceAttributes, BufferAssignment, with_states
+            SurfaceAttributes, BufferAssignment, with_states
         },
         shm::with_buffer_contents,
     },
@@ -25,12 +25,14 @@ use jni::{
 
 pub(crate) struct BridgeState {
     toplevels: Vec<ToplevelSurface>,
+    surfaces: Vec<WlSurface>,
 }
 
 impl BridgeState {
     pub fn new() -> Self {
         BridgeState {
             toplevels: vec![],
+            surfaces: vec![],
         }
     }
 }
@@ -113,57 +115,68 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevels<'l>(
     array.into_raw()
 }
 
-fn create_surface<'l>(
-    env: &mut JNIEnv<'l>,
-    surf: &WlSurface,
-    data: &SurfaceData
-) -> JObject<'l> {
-    let class_name = "dev/evvie/waylandcraft/bridge/WLCSurface";
-    let ctor = env.get_method_id(class_name, "<init>", "()V").unwrap();
-    let obj = unsafe {
-        env.new_object_unchecked(class_name, ctor, &[]).unwrap()
-    };
+#[allow(non_upper_case_globals)]
+const WLCSurface_class: &str = "dev/evvie/waylandcraft/bridge/WLCSurface";
 
-    let mut attr_guard = data
-        .cached_state
-        .get::<SurfaceAttributes>();
-    let attr = attr_guard
-        .deref_mut()
-        .current();
+fn jptr_to_wlsurface(ptr: jlong) -> &'static mut WlSurface {
+    let ptr: *mut WlSurface = (ptr as usize) as *mut WlSurface;
+    unsafe { &mut *ptr }
+}
 
-    let maybe_buf = if let Some(assign) = &attr.buffer {
-        match assign {
-            BufferAssignment::NewBuffer(b) => Some(b),
-            BufferAssignment::Removed => None,
-        }
-    } else {
-        None
-    };
-    if let Some(buf) = maybe_buf {
-        let _ = with_buffer_contents(buf, |ptr, _len, metadata| {
-            let width = metadata.width as jint;
-            let height = metadata.height as jint;
-            unsafe {
-                let ptr = ptr.offset(metadata.offset as isize);
-                let jptr = (ptr as usize) as jlong;
-                let sig = "(JII)V";
-                env.call_method_unchecked(
-                    &obj,
-                    (class_name, "attachShmBuffer", sig),
-                    ReturnType::Primitive(Primitive::Void),
-                    &[
-                        jvalue { j: jptr },
-                        jvalue { i: width },
-                        jvalue { i: height },
-                    ]
-                ).unwrap();
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_updateSurface<'l>(
+    mut env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    obj: JObject<'l>
+) {
+    let handle: jlong = env.get_field_unchecked(
+        &obj,
+        (WLCSurface_class, "handle", "J"),
+        ReturnType::Primitive(Primitive::Long)
+    ).unwrap().j().unwrap();
+
+    let surface = jptr_to_wlsurface(handle);
+    with_states(surface, |data| {
+        let mut attr_guard = data
+            .cached_state
+            .get::<SurfaceAttributes>();
+        let attr = attr_guard
+            .deref_mut()
+            .current();
+
+        let maybe_buf = if let Some(assign) = &attr.buffer {
+            match assign {
+                BufferAssignment::NewBuffer(b) => Some(b),
+                BufferAssignment::Removed => None,
             }
-        });
-        buf.release();
-        attr.buffer = None;
-    }
-
-    obj
+        } else {
+            None
+        };
+        if let Some(buf) = maybe_buf {
+            let _ = with_buffer_contents(buf, |ptr, _len, metadata| {
+                let width = metadata.width as jint;
+                let height = metadata.height as jint;
+                unsafe {
+                    let ptr = ptr.offset(metadata.offset as isize);
+                    let jptr = (ptr as usize) as jlong;
+                    let sig = "(JII)V";
+                    env.call_method_unchecked(
+                        &obj,
+                        (WLCSurface_class, "attachShmBuffer", sig),
+                        ReturnType::Primitive(Primitive::Void),
+                        &[
+                            jvalue { j: jptr },
+                            jvalue { i: width },
+                            jvalue { i: height },
+                        ]
+                    ).unwrap();
+                }
+            });
+            buf.release();
+            attr.buffer = None;
+        }
+    });
 }
 
 fn jptr_to_toplevel(ptr: jlong) -> &'static mut ToplevelSurface {
@@ -173,17 +186,32 @@ fn jptr_to_toplevel(ptr: jlong) -> &'static mut ToplevelSurface {
 
 #[unsafe(no_mangle)]
 pub extern "system"
-fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_surfaceTree<'l>(
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelSurface<'l>(
     mut env: JNIEnv<'l>,
     _class: JClass<'l>,
     ptr: jlong,
     handle: jlong
 ) -> jobject {
     let instance = jptr_to_instance(ptr);
-    let toplevel = jptr_to_toplevel(handle);
-    let surface = toplevel.wl_surface();
+    let toplevel: &mut ToplevelSurface = jptr_to_toplevel(handle);
+    let surface: &WlSurface = toplevel.wl_surface();
 
-    with_states(surface, |data| {
-        create_surface(&mut env, surface, data)
-    }).into_raw()
+    if !instance.bridge.surfaces.contains(&surface) {
+        instance.bridge.surfaces.push(surface.clone());
+    }
+
+    let ptr: &mut WlSurface = instance.bridge.surfaces
+        .iter_mut()
+        .find(|s| *s == surface)
+        .unwrap();
+    let ptr = ((ptr as *mut WlSurface) as usize) as jlong;
+
+    let ctor = env.get_method_id(WLCSurface_class, "<init>", "(J)V").unwrap();
+    unsafe {
+        env.new_object_unchecked(
+            WLCSurface_class,
+            ctor,
+            &[ jvalue { j: ptr } ]
+        ).unwrap().into_raw()
+    }
 }

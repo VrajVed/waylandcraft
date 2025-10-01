@@ -4,8 +4,6 @@ import java.util.ArrayList;
 
 import org.apache.commons.lang3.ArrayUtils;
 
-import dev.evvie.waylandcraft.BufferTexture;
-
 public class WaylandCraftBridge {
 	
 	private long instance;
@@ -29,31 +27,36 @@ public class WaylandCraftBridge {
 			if(toplevel.getHandle() == handle) return toplevel;
 		}
 		WLCToplevel toplevel = new WLCToplevel(handle);
+		WLCSurface surface = toplevelSurface(this.instance, handle);
+		toplevel.setSurface(surface);
+		
 		toplevels.add(toplevel);
 		return toplevel;
 	}
 	
 	private void deleteNonExisting(long[] remainingHandles) {
-		toplevels.removeIf((toplevel) -> !ArrayUtils.contains(remainingHandles, toplevel.takeHandle()));
+		ArrayList<WLCToplevel> toplevels_new = new ArrayList<WLCToplevel>();
+		for(WLCToplevel toplevel : this.toplevels) {
+			if(ArrayUtils.contains(remainingHandles, toplevel.getHandle())) {
+				toplevels_new.add(toplevel);
+			}
+			else {
+				toplevel.takeHandle();
+			}
+		}
+		this.toplevels = toplevels_new;
 	}
 	
 	public void update() {
 		update(this.instance);
 		
-		long[] toplevels = toplevels(instance);
-		deleteNonExisting(toplevels);
+		long[] toplevel_handles = toplevels(instance);
+		deleteNonExisting(toplevel_handles);
 		
-		for(long handle : toplevels) {
+		for(long handle : toplevel_handles) {
 			WLCToplevel toplevel = getOrCreate(handle);
-			
 			WLCSurface root = toplevel.getSurfaceTree();
-			BufferTexture buf;
-			if(root != null && (buf = root.getBuffer()) != null) {
-				buf.release();
-			}
-			
-			root = surfaceTree(this.instance, handle);
-			toplevel.setSurface(root);
+			updateSurface(root);
 		}
 	}
 	
@@ -70,6 +73,7 @@ public class WaylandCraftBridge {
 	private static native String socket(long instance);
 	
 	private static native long[] toplevels(long instance);
-	private static native WLCSurface surfaceTree(long instance, long handle);
+	private static native WLCSurface toplevelSurface(long instance, long handle);
+	private static native void updateSurface(WLCSurface surface);
 	
 }

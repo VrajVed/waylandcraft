@@ -1,21 +1,12 @@
 package dev.evvie.waylandcraft.bridge;
 
-import java.util.OptionalInt;
-
 import org.jetbrains.annotations.Nullable;
 
 import dev.evvie.waylandcraft.BufferTexture;
 
-/* Surface render object
- * 
- * Not persistent! Only meant for rendering!
- * These surfaces create a singly linked list through nextChild.
- * A WLCSurface object can represent any wayland surface and does not persistently represent the same one.
- */
 public class WLCSurface {
 	
-	// Current protocol id
-	protected int id = -1;
+	private long handle;
 	
 	@Nullable
 	private BufferTexture buffer = null;
@@ -24,8 +15,7 @@ public class WLCSurface {
 	@Nullable
 	private WLCSurface nextChild = null;
 	
-	// Current protocol id of the parent
-	protected OptionalInt parentId = OptionalInt.empty();
+	private long parentHandle = 0;
 	
 	@Nullable
 	private WLCSurface parent = null;
@@ -41,7 +31,18 @@ public class WLCSurface {
 	// Total depth
 	public int depth = 0;
 	
-	protected WLCSurface() {
+	protected WLCSurface(long handle) {
+		this.handle = handle;
+	}
+	
+	protected long getHandle() {
+		return this.handle;
+	}
+	
+	protected long takeHandle() {
+		long old = this.handle;
+		this.handle = 0;
+		return old;
 	}
 	
 	protected void setNextChild(WLCSurface surface) {
