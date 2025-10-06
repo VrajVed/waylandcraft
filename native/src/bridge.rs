@@ -219,12 +219,13 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_updateSurfaceData<'l>(
             let _ = with_buffer_contents(buf, |ptr, _len, metadata| {
                 let width = metadata.width as jint;
                 let height = metadata.height as jint;
+                let format = (metadata.format as u32) as jint;
                 ensure_viewport_valid(data, Size::new(width, height));
 
                 unsafe {
                     let ptr = ptr.offset(metadata.offset as isize);
                     let jptr = (ptr as usize) as jlong;
-                    let sig = "(JII)V";
+                    let sig = "(JIII)V";
                     env.call_method_unchecked(
                         &obj,
                         (WLCSurface_class, "attachShmBuffer", sig),
@@ -233,6 +234,7 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_updateSurfaceData<'l>(
                             jvalue { j: jptr },
                             jvalue { i: width },
                             jvalue { i: height },
+                            jvalue { i: format }
                         ]
                     ).unwrap();
                 }

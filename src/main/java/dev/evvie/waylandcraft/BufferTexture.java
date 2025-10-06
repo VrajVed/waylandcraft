@@ -7,15 +7,21 @@ import com.mojang.blaze3d.platform.TextureUtil;
 
 public class BufferTexture {
 	
+	public static final int FORMAT_ARGB8888 = 0;
+	public static final int FORMAT_XRGB8888 = 1;
+	
 	private final int id;
 	private final int width;
 	private final int height;
 	private final long ptr;
+	private final int format;
 	
-	public BufferTexture(long ptr, int width, int height) {
+	public BufferTexture(long ptr, int width, int height, int format) {
 		this.ptr = ptr;
 		this.width = width;
 		this.height = height;
+		this.format = format;
+		
 		this.id = TextureUtil.generateTextureId();
 		this.init();
 	}
@@ -30,6 +36,10 @@ public class BufferTexture {
 	
 	public int height() {
 		return height;
+	}
+	
+	public int getFormat() {
+		return format;
 	}
 	
 	private void init() {

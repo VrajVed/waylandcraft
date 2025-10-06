@@ -71,7 +71,7 @@ public class RenderUtils {
 		
 		if(testTexture == null) {
 			testTextureData = ByteBuffer.allocateDirect(width * height * 4);
-			testTexture = new BufferTexture(MemoryUtil.memAddress0(testTextureData), width, height);
+			testTexture = new BufferTexture(MemoryUtil.memAddress0(testTextureData), width, height, BufferTexture.FORMAT_XRGB8888);
 		}
 		
 		testTextureData.clear();

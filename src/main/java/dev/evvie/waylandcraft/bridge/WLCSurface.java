@@ -62,11 +62,12 @@ public class WLCSurface {
 	
 	// Attach a shared memory buffer
 	// The surface width and height are reset to the given buffer dimensions.
-	protected void attachShmBuffer(long ptr, int width, int height) {
+	protected void attachShmBuffer(long ptr, int width, int height, int format) {
+//		WaylandCraft.LOGGER.info("Buffer attached. pointer: " + ptr + ", dimensions: (" + width + ", " + height + "), format: " + format);
 		if(this.buffer != null) {
 			this.buffer.release();
 		}
-		this.buffer = new BufferTexture(ptr, width, height);
+		this.buffer = new BufferTexture(ptr, width, height, format);
 		this.width = width;
 		this.height = height;
 	}
