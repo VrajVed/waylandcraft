@@ -27,11 +27,29 @@ pub const EGL_HEIGHT: EGLAttrib = 0x3056;
 pub const EGL_LINUX_DMA_BUF_EXT: EGLAttrib = 0x3270;
 pub const EGL_LINUX_DRM_FOURCC_EXT: EGLAttrib = 0x3271;
 pub const EGL_DEVICE_EXT: EGLint = 0x322C;
+
 pub const EGL_DMA_BUF_PLANE0_FD_EXT: EGLAttrib = 0x3272;
 pub const EGL_DMA_BUF_PLANE0_OFFSET_EXT: EGLAttrib = 0x3273;
 pub const EGL_DMA_BUF_PLANE0_PITCH_EXT: EGLAttrib = 0x3274;
+pub const EGL_DMA_BUF_PLANE1_FD_EXT: EGLAttrib = 0x3275;
+pub const EGL_DMA_BUF_PLANE1_OFFSET_EXT: EGLAttrib = 0x3276;
+pub const EGL_DMA_BUF_PLANE1_PITCH_EXT: EGLAttrib = 0x3277;
+pub const EGL_DMA_BUF_PLANE2_FD_EXT: EGLAttrib = 0x3278;
+pub const EGL_DMA_BUF_PLANE2_OFFSET_EXT: EGLAttrib = 0x3279;
+pub const EGL_DMA_BUF_PLANE2_PITCH_EXT: EGLAttrib = 0x327A;
+pub const EGL_DMA_BUF_PLANE3_FD_EXT: EGLAttrib = 0x3440;
+pub const EGL_DMA_BUF_PLANE3_OFFSET_EXT: EGLAttrib = 0x3441;
+pub const EGL_DMA_BUF_PLANE3_PITCH_EXT: EGLAttrib = 0x3442;
+
 pub const EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT: EGLAttrib = 0x3443;
 pub const EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT: EGLAttrib = 0x3444;
+pub const EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT: EGLAttrib = 0x3445;
+pub const EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT: EGLAttrib = 0x3446;
+pub const EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT: EGLAttrib = 0x3447;
+pub const EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT: EGLAttrib = 0x3448;
+pub const EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT: EGLAttrib = 0x3449;
+pub const EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT: EGLAttrib = 0x344A;
+
 pub const EGL_DRM_RENDER_NODE_FILE_EXT: EGLint = 0x3377;
 
 type ProcAddrFn = extern "C" fn(*const libc::c_char) -> extern "C" fn();
@@ -126,8 +144,6 @@ impl EGLHelper {
     }
 
     pub fn dmabuf_to_image(&self, dmabuf: &Dmabuf) -> EGLImage {
-        assert!(dmabuf.num_planes() == 1);
-
         let mut attribs: Vec<EGLAttrib> = vec![];
         macro_rules! pair {
             ($a:expr, $v:expr) => {
@@ -140,22 +156,54 @@ impl EGLHelper {
         let mut offsets = dmabuf.offsets();
         let mut strides = dmabuf.strides();
 
-        // TODO: Support multiple planes
-
         pair!(EGL_WIDTH, dmabuf.width());
         pair!(EGL_HEIGHT, dmabuf.height());
         pair!(EGL_LINUX_DRM_FOURCC_EXT, (dmabuf.format().code as u32));
-        pair!(EGL_DMA_BUF_PLANE0_FD_EXT, handles.next().unwrap());
-        pair!(EGL_DMA_BUF_PLANE0_OFFSET_EXT, offsets.next().unwrap());
-        pair!(EGL_DMA_BUF_PLANE0_PITCH_EXT, strides.next().unwrap());
 
-        if dmabuf.has_modifier() {
-            let m = u64::from(dmabuf.format().modifier);
-            let lo = (m & ((u32::MAX) as u64)) as u32;
-            let hi = (m >> 32) as u32;
+        let plane_fd_attr = [
+            EGL_DMA_BUF_PLANE0_FD_EXT,
+            EGL_DMA_BUF_PLANE1_FD_EXT,
+            EGL_DMA_BUF_PLANE2_FD_EXT,
+            EGL_DMA_BUF_PLANE3_FD_EXT,
+        ];
+        let plane_offset_attr = [
+            EGL_DMA_BUF_PLANE0_OFFSET_EXT,
+            EGL_DMA_BUF_PLANE1_OFFSET_EXT,
+            EGL_DMA_BUF_PLANE2_OFFSET_EXT,
+            EGL_DMA_BUF_PLANE3_OFFSET_EXT,
+        ];
+        let plane_pitch_attr = [
+            EGL_DMA_BUF_PLANE0_PITCH_EXT,
+            EGL_DMA_BUF_PLANE1_PITCH_EXT,
+            EGL_DMA_BUF_PLANE2_PITCH_EXT,
+            EGL_DMA_BUF_PLANE3_PITCH_EXT,
+        ];
+        let plane_mod_lo_attr = [
+            EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,
+            EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT,
+            EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT,
+            EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT,
+        ];
+        let plane_mod_hi_attr = [
+            EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,
+            EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT,
+            EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT,
+            EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT,
+        ];
 
-            pair!(EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, lo);
-            pair!(EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, hi);
+        for idx in 0..dmabuf.num_planes() {
+            pair!(plane_fd_attr[idx], handles.next().unwrap());
+            pair!(plane_offset_attr[idx], offsets.next().unwrap());
+            pair!(plane_pitch_attr[idx], strides.next().unwrap());
+
+            if dmabuf.has_modifier() {
+                let m = u64::from(dmabuf.format().modifier);
+                let lo = (m & ((u32::MAX) as u64)) as u32;
+                let hi = (m >> 32) as u32;
+
+                pair!(plane_mod_lo_attr[idx], lo);
+                pair!(plane_mod_hi_attr[idx], hi);
+            }
         }
 
         attribs.push(EGL_NONE);
