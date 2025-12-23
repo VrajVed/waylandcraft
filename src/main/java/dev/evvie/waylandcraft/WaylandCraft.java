@@ -3,9 +3,11 @@ package dev.evvie.waylandcraft;
 import java.awt.Color;
 import java.util.ArrayList;
 
+import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import dev.evvie.waylandcraft.Window.WindowHitResult;
@@ -18,6 +20,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.CoreShaderRegistrationCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
@@ -87,9 +90,101 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		});
 	}
 	
+	/* Handle mouse button input
+	 * Returns true when the mouse button action has been consumed
+	 */
+	public boolean onButtonPress(long windowHandle, int button, int action, int modifiers) {
+		if(hitResult == null) return false;
+		
+		Window window = hitResult.target;
+		if(!window.isAlive()) {
+			hitResult = null;
+			return false;
+		}
+		
+		KeyMapping.set(InputConstants.Type.MOUSE.getOrCreate(button), false);
+		
+		// Check if on the backside of the window
+		if(hitResult.dist < 0) return true;
+		
+		// 0x110 is linux BTN_LEFT, see linux/input-event-codes.h
+		bridge.sendButton(0x110 + button, action);
+		
+		return true;
+	}
+	
+	/* Handle mouse scroll input
+	 * Returns true when the mouse scroll action has been consumed
+	 */
+	public boolean onScroll(long windowHandle, double scrollX, double scrollY) {
+		if(hitResult == null) return false;
+		
+		Window window = hitResult.target;
+		if(!window.isAlive()) {
+			hitResult = null;
+			return false;
+		}
+		
+		// Check if on the backside of the window
+		if(hitResult.dist < 0) return true;
+		
+		// Multiplication by -10 is the inverse transformation from what GLFW does on wayland
+		bridge.sendScroll(0, -scrollY * 10);
+		bridge.sendScroll(1, -scrollX * 10);
+		
+		return true;
+	}
+	
+	/* Handle keyboard input
+	 * Returns true when the key press action has been consumed
+	 */
+	public boolean onKeyPress(long windowHandle, int key, int scancode, int action, int modifiers) {
+		if(key == GLFW.GLFW_KEY_F7) {
+			handleCaptureKey(action);
+			return true;
+		}
+		
+		if(!keyboardCaptured) return false;
+		
+		/* This code just completely naively assumes that the scancode received by GLFW
+		 * is also the correct matching Wayland scancode for the default XKBConfig.
+		 * For X11 and Wayland hosts, this is a huge hack but should mostly work for now
+		 */
+		if(action == GLFW.GLFW_PRESS) {
+			LOGGER.info("PRESSED KEY: " + scancode);
+			bridge.pressKey(scancode);
+		}
+		else if(action == GLFW.GLFW_RELEASE) {
+			LOGGER.info("RELEASED KEY: " + scancode);
+			bridge.releaseKey(scancode);
+		}
+		
+		return true;
+	}
+	
+	private void handleCaptureKey(int action) {
+		if(action != GLFW.GLFW_PRESS) {
+			return;
+		}
+		
+		if(hitResult == null || hitResult.dist < 0) {
+			bridge.focusSurface(null);
+			keyboardCaptured = false;
+			return;
+		}
+		
+		WLCSurface surface = hitResult.target.backing.getSurfaceTree();
+		if(!surface.isAlive()) return;
+		
+		bridge.focusSurface(surface);
+		keyboardCaptured = !keyboardCaptured;
+	}
+	
 	private void anchorToParent(WLCPopup popup) {
-		Window window = windows.stream().filter((w) -> w.backing == popup).findAny().get();
-		Window parent = windows.stream().filter((w) -> w.backing == popup.getParent()).findAny().get();
+		Window window = windows.stream().filter((w) -> w.backing == popup).findAny().orElse(null);
+		Window parent = windows.stream().filter((w) -> w.backing == popup.getParent()).findAny().orElse(null);
+		
+		if(window == null || parent == null) return;
 		
 		// If the parent is also a popup, first make it anchor itself
 		if(parent.backing instanceof WLCPopup) {
