@@ -78,10 +78,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		});
 		
 		HudRenderCallback.EVENT.register((context, delta) -> {
+			if(Minecraft.getInstance().options.hideGui) return;
+			
 			if(WaylandCraft.instance.keyboardCaptured) {
 				String text = "KEYBOARD CAPTURED [PRESS F7]";
 				Font font = Minecraft.getInstance().font;
-				context.drawString(Minecraft.getInstance().font, text, context.guiWidth() - font.width(text) - 10, 10, Color.red.getRGB());
+				context.drawString(Minecraft.getInstance().font, text, context.guiWidth() - font.width(text) - 10, 10, Color.red.getRGB(), false);
 			}
 		});
 		
