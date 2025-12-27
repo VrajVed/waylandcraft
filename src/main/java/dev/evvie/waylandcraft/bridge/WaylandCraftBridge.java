@@ -185,6 +185,7 @@ public class WaylandCraftBridge {
 			toplevel.lastChild = updateSurfaceTree(root);
 			updateGeometry(toplevel);
 			toplevel.title = toplevelTitle(toplevel.getHandle());
+			toplevel.appID = toplevelAppID(toplevel.getHandle());
 		}
 		
 		// Create new popups when necessary
@@ -328,6 +329,7 @@ public class WaylandCraftBridge {
 	private static native long[] toplevels(long instance);
 	private static native long toplevelSurface(long instance, long handle);
 	private static native String toplevelTitle(long handle);
+	private static native String toplevelAppID(long handle);
 	
 	private static native long[] popups(long instance);
 	private static native long popupSurface(long instance, long handle);

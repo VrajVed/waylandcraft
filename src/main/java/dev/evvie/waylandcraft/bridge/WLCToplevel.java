@@ -7,6 +7,9 @@ public class WLCToplevel extends WLCAbstractWindow {
 	@Nullable
 	public String title;
 	
+	@Nullable
+	public String appID;
+	
 	public WLCToplevel(long handle) {
 		super(handle);
 	}

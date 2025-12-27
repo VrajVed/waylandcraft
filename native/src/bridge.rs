@@ -971,6 +971,31 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelTitle<'l>(
 
 #[unsafe(no_mangle)]
 pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelAppID<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong
+) -> jstring {
+    let toplevel = jptr_to_toplevel(handle);
+    let surface = toplevel.wl_surface();
+
+    let app_id = with_states(&surface, |states| {
+        let attr_guard = states
+            .data_map
+            .get::<XdgToplevelSurfaceData>()
+            .unwrap()
+            .lock()
+            .unwrap();
+        attr_guard.app_id.clone()
+    });
+
+    if let Some(app_id) = app_id {
+        env.new_string(&app_id).unwrap().into_raw()
+    } else { std::ptr::null_mut() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
 fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_freeSurface<'l>(
     _env: JNIEnv<'l>,
     _class: JClass<'l>,
