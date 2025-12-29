@@ -23,10 +23,12 @@ public class SelectorWidget extends AbstractWidget {
 	}
 	
 	public void setEntries(String[] entries) {
-		setCount(entries.length);
+		int numEntries = Math.min(entries.length, buttons.length);
+		
+		setCount(numEntries);
 		if(entries.length == 0) buttons[0].setMessage(Component.empty());
 		
-		for(int i = 0; i < entries.length; i++) {
+		for(int i = 0; i < numEntries; i++) {
 			buttons[i].setMessage(Component.literal(entries[i]));
 		}
 	}

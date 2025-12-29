@@ -319,6 +319,16 @@ public class WaylandCraftBridge {
 		keyboardReset(instance);
 	}
 	
+	public void resizeToplevelInteractive(WLCToplevel toplevel, int width, int height) {
+		System.out.println("resizeToplevelInteractive " + width + ", " + height);
+		toplevelResizeInt(toplevel.getHandle(), width, height, false);
+	}
+	
+	public void resizeToplevelInteractiveStop(WLCToplevel toplevel, int width, int height) {
+		System.out.println("resizeToplevelInteractiveStop " + width + ", " + height);
+		toplevelResizeInt(toplevel.getHandle(), width, height, true);
+	}
+	
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
 	private static native void update(long instance);
 	private static native String socket(long instance);
@@ -330,6 +340,8 @@ public class WaylandCraftBridge {
 	private static native long toplevelSurface(long instance, long handle);
 	private static native String toplevelTitle(long handle);
 	private static native String toplevelAppID(long handle);
+	// Interactive toplevel resize
+	private static native void toplevelResizeInt(long handle, int width, int height, boolean stop);
 	
 	private static native long[] popups(long instance);
 	private static native long popupSurface(long instance, long handle);

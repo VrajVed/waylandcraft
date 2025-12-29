@@ -23,6 +23,7 @@ import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCSurface.ViewportSource;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -36,14 +37,24 @@ public class WindowManagerScreen extends Screen {
 	private SelectorWidget selector;
 	private Button grabButton;
 	private Button hideButton;
+	private Button resizeButton;
 	
-	private final int margin = 5;
-	private final int topMargin = 50;
+	private final int margin = 3;
+	private final int topMargin = 52;
 	private final int rootHeight = 1080;
 	
 	private int areaWidth;
 	private int areaHeight;
 	private float scale;
+	
+	private boolean resizeMode = false;
+	private WLCToplevel resizeToplevel = null;
+	private double resizeInitialX = -1;
+	private double resizeInitialY = -1;
+	private int resizeInitialWidth = -1;
+	private int resizeInitialHeight = -1;
+	private int resizeWidth = -1;
+	private int resizeHeight = -1;
 	
 	private WLCToplevel focused = null;
 	
@@ -61,13 +72,32 @@ public class WindowManagerScreen extends Screen {
 		areaHeight = height - margin - topMargin;
 		scale = rootHeight / (float) areaHeight;
 		
-		selector = new SelectorWidget(margin, topMargin - 11, 50, 12, 5);
+		selector = new SelectorWidget(margin, topMargin - 14, areaWidth / 6, 15, 6);
 		addRenderableWidget(selector);
 		
-		grabButton = Button.builder(Component.literal("Grab"), this::onGrabPressed).pos(width - 85, 5).size(80, 17).build();
-		hideButton = Button.builder(Component.literal("Hide"), this::onHidePressed).pos(width - 85, 25).size(80, 17).build();
+		int buttonWidth = width / 6;
+		int buttonHeight = 17;
+		
+		grabButton = Button.builder(Component.literal("Grab"), this::onGrabPressed)
+				.pos(width - margin - buttonWidth, margin)
+				.size(buttonWidth, buttonHeight)
+				.build();
+		
+		hideButton = Button.builder(Component.literal("Hide"), this::onHidePressed)
+				.pos(width - margin - buttonWidth, margin + buttonHeight)
+				.size(buttonWidth, buttonHeight)
+				.build();
+		
+		resizeButton = Button.builder(Component.literal("Resize"), this::onResizePressed)
+				.pos(width / 2 - buttonWidth / 2, margin + buttonHeight)
+				.size(buttonWidth, buttonHeight)
+				.build();
+		
+//		InputConstants.grabOrReleaseMouse(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR_DISABLED, this.xpos, this.ypos);
+		
 		addRenderableWidget(grabButton);
 		addRenderableWidget(hideButton);
+		addRenderableWidget(resizeButton);
 		
 		wlc.bridge.keyboardReset();
 	}
@@ -83,6 +113,29 @@ public class WindowManagerScreen extends Screen {
 		if(focused == null) return;
 		
 		wlc.windows.removeIf((w) -> w.backing == focused);
+	}
+	
+	private void onResizePressed(Button button) {
+		if(focused == null) return;
+		
+		wlc.bridge.sendMotionOutside();
+		GLFW.glfwSetInputMode(Minecraft.getInstance().getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
+		
+		resizeMode = true;
+		resizeToplevel = focused;
+		resizeInitialWidth = resizeWidth = focused.geometry.width();
+		resizeInitialHeight = resizeHeight = focused.geometry.height();
+		resizeInitialX = resizeInitialY = -1;
+		
+		focused = null;
+	}
+	
+	private void exitResizeMode() {
+		wlc.bridge.resizeToplevelInteractiveStop(resizeToplevel, resizeWidth, resizeHeight);
+		
+		GLFW.glfwSetInputMode(Minecraft.getInstance().getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
+		resizeMode = false;
+		resizeToplevel = null;
 	}
 	
 	@Override
@@ -115,7 +168,14 @@ public class WindowManagerScreen extends Screen {
 			}
 		}
 		
-		if(current != focused) {
+		if(resizeMode && current == resizeToplevel) {
+			setFocused(null);
+			wlc.bridge.focusSurface(null);
+		}
+		else if(resizeMode) {
+			exitResizeMode();
+		}
+		else if(current != focused) {
 			focused = current;
 			
 			wlc.bridge.keyboardReset();
@@ -126,10 +186,12 @@ public class WindowManagerScreen extends Screen {
 		if(focused != null) {
 			grabButton.active = true;
 			hideButton.active = wlc.hasWindowFor(focused);
+			resizeButton.active = true;
 		}
 		else {
 			grabButton.active = false;
 			hideButton.active = false;
+			resizeButton.active = false;
 		}
 	}
 	
@@ -167,6 +229,34 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public void mouseMoved(double x, double y) {
+		if(resizeMode) {
+			wlc.bridge.sendMotionOutside();
+			
+			if(!resizeToplevel.isAlive()) {
+				exitResizeMode();
+				return;
+			}
+			
+			if(resizeInitialX < 0 || resizeInitialY < 0) {
+				resizeInitialX = x;
+				resizeInitialY = y;
+			}
+			
+			int dx = (int) ((x - resizeInitialX) * scale) / 2;
+			int dy = (int) ((y - resizeInitialY) * scale) / 2;
+			
+			resizeWidth = resizeInitialWidth + dx;
+			resizeHeight = resizeInitialHeight + dy;
+			
+			resizeWidth = Math.clamp(resizeWidth, 0, 1920);
+			resizeHeight = Math.clamp(resizeHeight, 0, 1080);
+			
+			WaylandCraft.LOGGER.info("RESIZE " + resizeWidth + ", " + resizeHeight + " [" + resizeInitialWidth + ", " + resizeInitialHeight + "]");
+			wlc.bridge.resizeToplevelInteractive(resizeToplevel, resizeWidth, resizeHeight);
+			
+			return;
+		}
+		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
 		
 		if(hovered != null) wlc.bridge.sendMotion(hovered.surface, hovered.rx, hovered.ry);
@@ -175,6 +265,8 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseClicked(double x, double y, int mouseButton) {
+		if(resizeMode) return true;
+		
 		if(super.mouseClicked(x, y, mouseButton)) return true;
 		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
@@ -188,6 +280,11 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseReleased(double x, double y, int mouseButton) {
+		if(resizeMode) {
+			exitResizeMode();
+			return true;
+		}
+		
 		if(super.mouseReleased(x, y, mouseButton)) return true;
 		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
@@ -206,6 +303,8 @@ public class WindowManagerScreen extends Screen {
 			return true;
 		}
 		
+		if(resizeMode) return true;
+		
 		// Forward key press to currently focused widget
 		if(getFocused() != null && getFocused().keyPressed(key, scancode, modifiers)) return true;
 		
@@ -220,6 +319,8 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean keyReleased(int key, int scancode, int modifiers) {
+		if(resizeMode) return true;
+		
 		if(super.keyReleased(key, scancode, modifiers)) return true;
 		
 		if(focused != null) {
@@ -232,6 +333,8 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		if(resizeMode) return true;
+		
 		if(super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
 		
 		HoveredSurface hovered = surfaceUnderPointer(mouseX, mouseY);
@@ -247,6 +350,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public void removed() {
+		if(resizeMode) exitResizeMode();
 		wlc.bridge.sendMotionOutside();
 	}
 	

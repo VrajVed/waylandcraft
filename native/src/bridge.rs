@@ -36,13 +36,14 @@ use smithay::{
                 wl_buffer::WlBuffer,
             },
         },
+        wayland_protocols::xdg::shell::server::xdg_toplevel,
     },
 };
 use jni::{
     objects::{JClass, JObject, JValue},
     sys::{
         jlong, jstring, jarray, jsize, jint, jvalue, jdouble, jboolean, jobject,
-        jbyte
+        jbyte, JNI_FALSE
     },
     signature::{ReturnType, Primitive},
     JNIEnv,
@@ -992,6 +993,29 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelAppID<'l>(
     if let Some(app_id) = app_id {
         env.new_string(&app_id).unwrap().into_raw()
     } else { std::ptr::null_mut() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelResizeInt<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+    width: jint,
+    height: jint,
+    stop: jboolean
+) {
+    let toplevel = jptr_to_toplevel(handle);
+
+    toplevel.with_pending_state(|state| {
+        state.size = Some(Size::new(width, height));
+        if stop == JNI_FALSE {
+            state.states.set(xdg_toplevel::State::Resizing);
+        } else {
+            state.states.unset(xdg_toplevel::State::Resizing);
+        }
+    });
+    toplevel.send_pending_configure();
 }
 
 #[unsafe(no_mangle)]
