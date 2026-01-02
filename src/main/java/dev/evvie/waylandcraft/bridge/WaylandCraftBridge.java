@@ -2,6 +2,7 @@ package dev.evvie.waylandcraft.bridge;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.jetbrains.annotations.Nullable;
@@ -338,6 +339,12 @@ public class WaylandCraftBridge {
 	public WLCToplevel getMostRecentFocus() {
 		updateFocusOrder();
 		return focusOrder.peekLast();
+	}
+	
+	// Find the most recently focused toplevel that exists
+	public Stream<WLCToplevel> getMostToLeastRecentFocus() {
+		updateFocusOrder();
+		return focusOrder.reversed().stream();
 	}
 	
 	public void pressKey(int scancode) {

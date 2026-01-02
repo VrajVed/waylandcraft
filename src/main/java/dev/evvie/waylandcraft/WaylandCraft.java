@@ -132,7 +132,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			// Make sure the toplevels are focused in their respective order and being refocused when a toplevel disappears
 			if(!(Minecraft.getInstance().screen instanceof WindowManagerScreen)) {
-				bridge.focusSurface(bridge.getMostRecentFocus());
+				WLCToplevel focus = bridge.getMostToLeastRecentFocus()
+						.filter((t) -> hasWindowFor(t))
+						.findFirst()
+						.orElse(null);
+				
+				bridge.focusSurface(focus);
 			}
 			
 			RenderSystem.enableDepthTest();
