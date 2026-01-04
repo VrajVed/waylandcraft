@@ -61,6 +61,7 @@ use smithay::{
 mod bridge;
 mod egl;
 mod seat;
+mod ddm;
 
 pub(crate) struct WaylandCraft<'a> {
     pub state: WLCState,
@@ -99,6 +100,8 @@ impl WLCState {
 
         let seat = WLCSeatState::new();
         seat.create_global(&disp);
+
+        ddm::create_ddm_global(&disp);
 
         Self {
             display_handle: disp.clone(),
