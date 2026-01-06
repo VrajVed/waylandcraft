@@ -75,16 +75,14 @@ impl Dispatch<WlDataDevice, ()> for WLCState {
     fn request(
         _state: &mut Self,
         _client: &Client,
-        device: &WlDataDevice,
+        _device: &WlDataDevice,
         request: wl_data_device::Request,
         _data: &(),
         _disp: &DisplayHandle,
         _data_init: &mut DataInit<'_, Self>,
     ) {
         match request {
-            wl_data_device::Request::StartDrag { .. } => {
-                device.drop();
-            },
+            wl_data_device::Request::StartDrag { .. } => {},
             wl_data_device::Request::SetSelection { .. } => {},
             wl_data_device::Request::Release => {},
             _ => unreachable!(),
