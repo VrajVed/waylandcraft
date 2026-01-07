@@ -118,6 +118,8 @@ public class XDGDesktopManager {
 	public HashMap<String, String> parseDesktopEntry(File entryFile) throws IOException {
 		FileInputStream in = new FileInputStream(entryFile);
 		String entryData = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+		in.close();
+		
 		String[] entries = entryData.split("\\R", -1);
 		
 		int line;
