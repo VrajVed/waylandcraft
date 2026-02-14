@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::ops::DerefMut;
+use std::os::fd::AsFd;
 use crate::WLCState;
 use smithay::{
     reexports::{
@@ -17,16 +18,11 @@ use smithay::{
         },
     },
 };
-use rustix::{
-    fd::{AsFd, OwnedFd},
-    io::{read, write},
-    pipe::{pipe_with, PipeFlags},
-};
 
 pub struct WLCDataState {
     pub devices: Vec<WlDataDevice>,
-    pub sources: Vec<WlDataSource>,
-    pub clipboard: Option<String>,
+    pub clipboard: Option<WlDataSource>,
+    pub clipboard_focus: Option<Client>,
     display_handle: DisplayHandle,
 }
 
@@ -35,9 +31,14 @@ struct WLCDataSourceData {
     mime: Vec<String>,
 }
 
+type WLCDataOffer = Arc<Mutex<WLCDataOfferData>>;
+struct WLCDataOfferData {
+    // NOTE: The source is in the id space of the source client!!
+    source: WlDataSource,
+}
+
 type WLCDataDevice = Arc<Mutex<WLCDataDeviceData>>;
 struct WLCDataDeviceData {
-    offer: Option<WlDataOffer>,
 }
 
 fn with_source_data<F, R>(source: &WlDataSource, f: F) -> R
@@ -52,6 +53,19 @@ fn with_source_data<F, R>(source: &WlDataSource, f: F) -> R
     f(data)
 }
 
+fn with_offer_data<F, R>(offer: &WlDataOffer, f: F) -> R
+    where F: FnOnce(&mut WLCDataOfferData) -> R
+{
+    let mut guard = offer
+        .data::<WLCDataOffer>()
+        .unwrap()
+        .lock()
+        .unwrap();
+    let data = guard.deref_mut();
+    f(data)
+}
+
+#[allow(dead_code)]
 fn with_device_data<F, R>(device: &WlDataDevice, f: F) -> R
     where F: FnOnce(&mut WLCDataDeviceData) -> R
 {
@@ -64,14 +78,12 @@ fn with_device_data<F, R>(device: &WlDataDevice, f: F) -> R
     f(data)
 }
 
-const CLIPBOARD_MIME: &'static str = "text/plain;charset=utf-8";
-
 impl WLCDataState {
     pub fn new(display_handle: &DisplayHandle) -> Self {
         WLCDataState {
             devices: vec![],
-            sources: vec![],
             clipboard: None,
+            clipboard_focus: None,
             display_handle: display_handle.clone(),
         }
     }
@@ -80,26 +92,48 @@ impl WLCDataState {
         self.display_handle.create_global::<WLCState, WlDDM, ()>(3, ());
     }
 
-    // Send clipboard data to client
-    // `client` has to be the client currently holding keyboard focus!
-    pub fn send_clipboard(&self, client: Client) {
-        self.for_all_devices(|device, data| {
-            if device.client().is_some_and(|c| c == client) {
-                let offer = client.create_resource::<
-                    WlDataOffer, (), WLCState
-                >(&self.display_handle, device.version(), ()).unwrap();
-
-                println!("Sending selection");
-                device.data_offer(&offer);
-                offer.offer(CLIPBOARD_MIME.into());
-                device.selection(Some(&offer));
-                data.offer = Some(offer);
-            } else {
-                data.offer = None;
-            }
-        });
+    pub fn update_clipboard_client(&mut self, client: Option<Client>) {
+        if self.clipboard_focus != client {
+            self.clipboard_focus = client;
+            self.send_clipboard();
+        }
     }
 
+    // Send clipboard data to client with clipboard focus
+    fn send_clipboard(&self) {
+        let client = match &self.clipboard_focus {
+            Some(c) => c,
+            None => {return;},
+        };
+        for device in &self.devices {
+            if !device.client().is_some_and(|c| c == *client) {
+                continue;
+            }
+
+            println!("Sending clipboard!");
+            if let Some(clipboard) = &self.clipboard {
+                let offer_data = WLCDataOfferData {
+                    source: clipboard.clone(),
+                };
+                let offer_data = Arc::new(Mutex::new(offer_data));
+                let offer = client.create_resource::<
+                    WlDataOffer, WLCDataOffer, WLCState
+                >(&self.display_handle, device.version(), offer_data).unwrap();
+
+                device.data_offer(&offer);
+                with_source_data(&clipboard, |data| {
+                    for m in data.mime.iter().cloned() {
+                        offer.offer(m);
+                    }
+                });
+                device.selection(Some(&offer));
+            } else {
+                device.selection(None);
+            }
+        }
+    }
+
+    #[allow(dead_code)]
     fn for_all_devices<F>(&self, mut f: F)
         where F: FnMut(&WlDataDevice, &mut WLCDataDeviceData)
     {
@@ -138,13 +172,10 @@ impl Dispatch<WlDDM, ()> for WLCState {
                     mime: vec![],
                 };
                 let source_data = Arc::new(Mutex::new(source_data));
-                let source = data_init.init(id, source_data.clone());
-
-                state.data.sources.push(source);
+                let _source = data_init.init(id, source_data.clone());
             },
             wl_ddm::Request::GetDataDevice { id, .. } => {
                 let device_data = WLCDataDeviceData {
-                    offer: None,
                 };
                 let device_data = Arc::new(Mutex::new(device_data));
                 let device = data_init.init(id, device_data.clone());
@@ -184,22 +215,10 @@ impl Dispatch<WlDataSource, WLCDataSource> for WLCState {
         resource: &WlDataSource,
         _data: &WLCDataSource,
     ) {
-        state.data.sources.retain(|s| s != resource);
-    }
-}
-
-fn read_file_descriptor(fd: OwnedFd) -> Vec<u8> {
-    let mut data: Vec<u8> = vec![];
-    let mut buf: [u8; 2048] = [0; 2048];
-    loop {
-        let len = read(&fd, &mut buf).expect("pipe read");
-        if len == 0 {
-            break;
+        if state.data.clipboard.as_ref().is_some_and(|c| c == resource) {
+            state.data.clipboard = None;
         }
-
-        data.extend(&buf[..len]);
     }
-    data
 }
 
 impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
@@ -215,34 +234,26 @@ impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
         match request {
             wl_data_device::Request::StartDrag { .. } => {},
             wl_data_device::Request::SetSelection { source, serial: _ } => {
-                if let Some(source) = source {
-                    with_source_data(&source, |data| {
-                        println!("SetSelection request {:?}", data.mime);
-                        if !data.mime.iter().any(|s| s == CLIPBOARD_MIME) {
-                            return;
-                        }
-                        // STOP SENDING ME EMPTY CLIPBOARD SELECTIONS WITH THE
-                        // SAVE_TARGETS MIME. I HAVE NO CLUE WHAT THAT IS.
-                        // WHYYYYYYYY. I blame X11.
-                        if data.mime.iter().any(|s| s == "SAVE_TARGETS") {
-                            return;
-                        }
-                        let (read_fd, write_fd) =
-                            pipe_with(PipeFlags::CLOEXEC)
-                            .expect("pipe open");
-                        source.send(CLIPBOARD_MIME.into(), write_fd.as_fd());
-                        state.display_handle.flush_clients().unwrap();
-                        drop(write_fd);
-
-                        let data = read_file_descriptor(read_fd);
-                        if let Ok(data) = String::from_utf8(data) {
-                            println!("SELECTION '{}'", data);
-                            state.data.clipboard = Some(data);
-                        }
-
-                        source.cancelled();
+                if let Some(source) = &source {
+                    let mime = with_source_data(source, |data| {
+                        data.mime.clone()
                     });
+
+                    println!("New clipboard data: {:?}", mime);
+
+                    // STOP SENDING ME EMPTY CLIPBOARD SELECTIONS WITH THE
+                    // SAVE_TARGETS MIME. I HAVE NO CLUE WHAT THAT IS.
+                    // WHYYYYYYYY. I blame X11.
+                    if mime.iter().any(|m| m == "SAVE_TARGETS") {
+                        return;
+                    }
                 }
+
+                if let Some(old_clipboard) = &state.data.clipboard {
+                    old_clipboard.cancelled();
+                }
+                state.data.clipboard = source;
+                state.data.send_clipboard();
             },
             wl_data_device::Request::Release => {},
             _ => unreachable!(),
@@ -259,27 +270,33 @@ impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
     }
 }
 
-impl Dispatch<WlDataOffer, ()> for WLCState {
+impl Dispatch<WlDataOffer, WLCDataOffer> for WLCState {
     fn request(
-        state: &mut Self,
+        _state: &mut Self,
         _client: &Client,
-        _resource: &WlDataOffer,
+        offer: &WlDataOffer,
         request: wl_data_offer::Request,
-        _data: &(),
+        _data: &WLCDataOffer,
         _disp: &DisplayHandle,
         _data_init: &mut DataInit<'_, Self>,
     ) {
         match request {
             wl_data_offer::Request::Receive { mime_type, fd } => {
-                println!("CLIPBOARD RECEIVE REQUEST '{}', have '{:#?}'",
-                    mime_type, state.data.clipboard);
-                if mime_type != CLIPBOARD_MIME {
-                    return;
-                }
-                if let Some(content) = &state.data.clipboard {
-                    write(fd, content.as_bytes())
-                        .expect("wl_data_offer write");
-                }
+                with_offer_data(offer, |data| {
+                    if !data.source.is_alive() {
+                        return;
+                    }
+
+                    let mime = with_source_data(&data.source, |source_data| {
+                        source_data.mime.clone()
+                    });
+
+                    if !mime.iter().any(|m| *m == mime_type) {
+                        return;
+                    }
+
+                    data.source.send(mime_type, fd.as_fd());
+                });
             },
             wl_data_offer::Request::Accept { .. } => {},
             wl_data_offer::Request::Destroy { .. } => {},
@@ -290,15 +307,10 @@ impl Dispatch<WlDataOffer, ()> for WLCState {
     }
 
     fn destroyed(
-        state: &mut Self,
+        _state: &mut Self,
         _client: ClientId,
-        resource: &WlDataOffer,
-        _data: &(),
+        _offer: &WlDataOffer,
+        _data: &WLCDataOffer,
     ) {
-        state.data.for_all_devices(|_device, data| {
-            if data.offer.as_ref().is_some_and(|o| o == resource) {
-                data.offer = None;
-            }
-        });
     }
 }

@@ -38,7 +38,7 @@ use smithay::{
     },
 };
 use jni::{
-    objects::{JClass, JObject, JValue, JString},
+    objects::{JClass, JObject, JValue},
     sys::{
         jlong, jstring, jarray, jsize, jint, jvalue, jdouble, jboolean, jobject,
         jbyte, JNI_TRUE
@@ -1002,6 +1002,10 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_keyboardFocus<'l>(
 
     let surface = toplevel.as_ref().map(|t| t.wl_surface().clone());
 
+    // Update the client gaining keyboard focus with the clipboard contents
+    let client = surface.as_ref().and_then(|s| s.client());
+    instance.state.data.update_clipboard_client(client);
+
     match surface {
         Some(s) => instance.state.seat.keyboard_focus(s),
         None => instance.state.seat.keyboard_unfocus(),
@@ -1057,52 +1061,6 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_keyboardUpdate<'l>(
         scancode as u32,
         press == JNI_TRUE,
     );
-}
-
-#[unsafe(no_mangle)]
-pub extern "system"
-fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_sendClipboard<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong
-) {
-    let instance = jptr_to_instance(ptr);
-    let toplevel = jptr_to_toplevel(handle);
-
-    let client = match toplevel.wl_surface().client() {
-        Some(c) => c,
-        None => return,
-    };
-
-    instance.state.data.send_clipboard(client);
-}
-
-#[unsafe(no_mangle)]
-pub extern "system"
-fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_setClipboardData<'l>(
-    mut env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    data: JString<'l>
-) {
-    let instance = jptr_to_instance(ptr);
-    let clipboard = env.get_string(&data).unwrap().into();
-    instance.state.data.clipboard = Some(clipboard);
-}
-
-#[unsafe(no_mangle)]
-pub extern "system"
-fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_getClipboardData<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong
-) -> jstring {
-    let instance = jptr_to_instance(ptr);
-    match &instance.state.data.clipboard {
-        Some(data) => env.new_string(data).unwrap().into_raw(),
-        None => std::ptr::null_mut(),
-    }
 }
 
 #[unsafe(no_mangle)]

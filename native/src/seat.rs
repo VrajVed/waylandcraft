@@ -238,7 +238,7 @@ impl WLCSeatState {
         self.xkb_state.update_key(code, dir);
     }
 
-    pub fn keyboard_focus(&self, surface: WlSurface) {
+    pub fn keyboard_focus(&mut self, surface: WlSurface) {
         if !surface.is_alive() { return };
         let client = surface.client().unwrap();
 
@@ -291,7 +291,7 @@ impl WLCSeatState {
         );
     }
 
-    pub fn keyboard_unfocus(&self) {
+    pub fn keyboard_unfocus(&mut self) {
         self.for_all_keyboards(|keyboard, data| {
             if let Some(focus) = &data.focus {
                 keyboard.leave(new_serial(), focus);

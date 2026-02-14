@@ -821,7 +821,6 @@ version = "0.1.0"
 dependencies = [
  "jni",
  "libc",
- "rustix 1.1.2",
  "smithay",
  "xkbcommon",
 ]
