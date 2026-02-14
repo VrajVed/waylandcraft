@@ -217,7 +217,14 @@ impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
             wl_data_device::Request::SetSelection { source, serial: _ } => {
                 if let Some(source) = source {
                     with_source_data(&source, |data| {
+                        println!("SetSelection request {:?}", data.mime);
                         if !data.mime.iter().any(|s| s == CLIPBOARD_MIME) {
+                            return;
+                        }
+                        // STOP SENDING ME EMPTY CLIPBOARD SELECTIONS WITH THE
+                        // SAVE_TARGETS MIME. I HAVE NO CLUE WHAT THAT IS.
+                        // WHYYYYYYYY. I blame X11.
+                        if data.mime.iter().any(|s| s == "SAVE_TARGETS") {
                             return;
                         }
                         let (read_fd, write_fd) =
@@ -232,6 +239,8 @@ impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
                             println!("SELECTION '{}'", data);
                             state.data.clipboard = Some(data);
                         }
+
+                        source.cancelled();
                     });
                 }
             },
