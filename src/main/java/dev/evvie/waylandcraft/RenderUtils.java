@@ -43,6 +43,16 @@ public class RenderUtils {
 		return POSITION_COLOR_TEX;
 	}
 	
+	public static void blitGUIUnscaled(GuiGraphics graphics, int tex, float x1, float y1, float x2, float y2) {
+		float guiScale = (float) Minecraft.getInstance().getWindow().getGuiScale();
+		x1 /= guiScale;
+		y1 /= guiScale;
+		x2 /= guiScale;
+		y2 /= guiScale;
+		
+		blitGUI(graphics, tex, x1, y1, x2, y2, 0, 0, 1, 1);
+	}
+	
 	public static void blitGUI(GuiGraphics graphics, int tex, float x1, float y1, float x2, float y2) {
 		blitGUI(graphics, tex, x1, y1, x2, y2, 0, 0, 1, 1);
 	}

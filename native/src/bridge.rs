@@ -1094,6 +1094,40 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_fullscreened<'l>(
 
 #[unsafe(no_mangle)]
 pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputSize<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong
+) -> jarray {
+    let instance = jptr_to_instance(handle);
+
+    let size = instance.state.output.size();
+    let size: [jint; 2] = [size.w, size.h];
+
+    let array = env.new_int_array(2).unwrap();
+    env.set_int_array_region(&array, 0, &size).unwrap();
+    array.into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputBounds<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong
+) -> jarray {
+    let instance = jptr_to_instance(handle);
+
+    let bounds = instance.state.output.bounds();
+    let bounds: [jint; 2] = [bounds.w, bounds.h];
+
+    let array = env.new_int_array(2).unwrap();
+    env.set_int_array_region(&array, 0, &bounds).unwrap();
+    array.into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
 fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputResize<'l>(
     _env: JNIEnv<'l>,
     _class: JClass<'l>,
@@ -1102,8 +1136,13 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputResize<'l>(
     height: jint
 ) {
     let instance = jptr_to_instance(handle);
-    let width_changed = instance.state.output.width() != width;
-    let height_changed = instance.state.output.height() != height;
+    let size = instance.state.output.size();
+    let width_changed = size.w != width;
+    let height_changed = size.h != height;
+
+    if width <= 0 || height <= 0 {
+        return;
+    }
 
     if !width_changed && !height_changed {
         return;
@@ -1115,9 +1154,43 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputResize<'l>(
         toplevel.with_pending_state(|state| {
             let fullscreen = state.states
                 .contains(xdg_toplevel::State::Fullscreen);
+            if fullscreen {
+                state.size = Some(Size::new(width, height));
+            }
+        });
+        toplevel.send_pending_configure();
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputSetBounds<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+    width: jint,
+    height: jint
+) {
+    let instance = jptr_to_instance(handle);
+    let bounds = instance.state.output.bounds();
+    let width_changed = bounds.w != width;
+    let height_changed = bounds.h != height;
+
+    if width <= 0 || height <= 0 {
+        return;
+    }
+
+    if !width_changed && !height_changed {
+        return;
+    }
+
+    instance.state.output.set_bounds(width, height);
+
+    for toplevel in instance.state.xdg_state.toplevel_surfaces() {
+        toplevel.with_pending_state(|state| {
             let maximized = state.states
                 .contains(xdg_toplevel::State::Maximized);
-            if fullscreen || maximized {
+            if maximized {
                 state.size = Some(Size::new(width, height));
             }
         });
@@ -1281,9 +1354,9 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelMaximize<'l>(
     let toplevel = jptr_to_toplevel(handle);
 
     toplevel.with_pending_state(|state| {
-        if state.states.contains(xdg_toplevel::State::Fullscreen) { return }
+        if state.states.contains(xdg_toplevel::State::Fullscreen) { return; }
         let output = &instance.state.output;
-        state.size = Some(Size::new(output.width(), output.height()));
+        state.size = Some(output.bounds());
         state.states.set(xdg_toplevel::State::Maximized);
     });
     toplevel.send_configure();
@@ -1302,7 +1375,7 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_toplevelFullscreen<'l>(
 
     toplevel.with_pending_state(|state| {
         let output = &instance.state.output;
-        state.size = Some(Size::new(output.width(), output.height()));
+        state.size = Some(output.size());
         state.states.set(xdg_toplevel::State::Fullscreen);
     });
     toplevel.send_configure();

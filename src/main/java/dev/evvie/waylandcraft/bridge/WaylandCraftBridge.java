@@ -404,12 +404,29 @@ public class WaylandCraftBridge {
 		outputResize(instance, width, height);
 	}
 	
+	public void setOutputBounds(int width, int height) {
+		outputSetBounds(instance, width, height);
+	}
+	
+	public Size getOutputSize() {
+		int[] size = outputSize(instance);
+		return new Size(size[0], size[1]);
+	}
+	
+	public Size getOutputBounds() {
+		int[] size = outputBounds(instance);
+		return new Size(size[0], size[1]);
+	}
+	
 	public String resolveName(String appID) {
 		return resolveName(instance, appID);
 	}
 	
 	public String resolveIconPath(String appID) {
 		return resolveIconPath(instance, appID);
+	}
+	
+	public static record Size(int width, int height) {
 	}
 	
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
@@ -497,8 +514,14 @@ public class WaylandCraftBridge {
 	// Update internal key state
 	private static native void keyboardUpdate(long instance, int scancode, boolean pressed);
 	
+	private static native int[] outputSize(long instance);
+	private static native int[] outputBounds(long instance);
+	
 	// Update virtual output dimensions
 	private static native void outputResize(long instance, int width, int height);
+	
+	// Update virtual output maximum window bounds
+	private static native void outputSetBounds(long instance, int width, int height);
 	
 	private static native void freeSurface(long instance, long handle);
 	private static native void freeToplevel(long instance, long handle);

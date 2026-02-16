@@ -17,6 +17,7 @@ import dev.evvie.waylandcraft.bridge.WLCPopup;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
+import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.mixin.IMouseHandlerMixin;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -35,20 +36,19 @@ public class WindowManagerScreen extends Screen {
 	private Button resizeButton;
 	private Button stickyButton;
 	
-	private final int margin = 3;
-	private final int topMargin = 52;
-	private final int rootHeight = 1080;
-	
-	private int areaWidth;
-	private int areaHeight;
-	private float scale;
-	
 	private boolean resizeMode = false;
 	private WLCToplevel resizeToplevel = null;
 	private double resizeLastX = Double.NaN;
 	private double resizeLastY = Double.NaN;
 	private int resizeWidth = -1;
 	private int resizeHeight = -1;
+	
+	// GUI parameters (in GUI scale coordinates!!)
+	private final int margin = 3;
+	private final int topMargin = 52;
+	private int areaWidth;
+	private int areaHeight;
+	private int guiScale;
 	
 	private WLCToplevel focused = null;
 	
@@ -64,7 +64,6 @@ public class WindowManagerScreen extends Screen {
 	protected void init() {
 		areaWidth = width - margin * 2;
 		areaHeight = height - margin - topMargin;
-		scale = rootHeight / (float) areaHeight;
 		
 		selector = new SelectorWidget<WLCToplevel>(margin, topMargin - 15, areaWidth, 15) {
 			@Override
@@ -180,13 +179,16 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public void render(GuiGraphics context, int i, int j, float f) {
-		super.render(context, i, j, f);
+		super.renderBlurredBackground(f);
 		
 		context.hLine(margin, width - margin, topMargin - 1, Color.white.getRGB());
 		context.hLine(margin, width - margin, height - margin, Color.white.getRGB());
 		
 		context.vLine(margin, topMargin - 1, height - margin, Color.white.getRGB());
 		context.vLine(width - margin, topMargin - 1, height - margin, Color.white.getRGB());
+		
+		guiScale = (int) Minecraft.getInstance().getWindow().getGuiScale();
+		wlc.bridge.setOutputBounds(areaWidth * guiScale, areaHeight * guiScale);
 		
 		WLCToplevel[] toplevels = wlc.bridge.getToplevels();
 		selector.setEntries(toplevels);
@@ -234,11 +236,11 @@ public class WindowManagerScreen extends Screen {
 			
 			for(WindowElement element : windows) {
 				WindowFramebuffer buf = element.window.framebuffer;
-				float x = element.x - buf.getXOff() / scale;
-				float y = element.y - buf.getYOff() / scale;
-				float w = buf.getWidth() / scale;
-				float h = buf.getHeight() / scale;
-				RenderUtils.blitGUI(context, buf.getTexture(), x, y, x + w, y + h);
+				float x = element.x - buf.getXOff();
+				float y = element.y - buf.getYOff();
+				float w = buf.getWidth();
+				float h = buf.getHeight();
+				RenderUtils.blitGUIUnscaled(context, buf.getTexture(), x, y, x + w, y + h);
 			}
 		}
 		
@@ -258,17 +260,20 @@ public class WindowManagerScreen extends Screen {
 			stickyButton.active = false;
 			stickyButton.setMessage(Component.literal("Sticky"));
 		}
+		
+		super.render(context, i, j, f);
+	}
+	
+	@Override
+	public void renderBackground(GuiGraphics guiGraphics, int i, int j, float f) {
 	}
 	
 	private HoveredSurface surfaceUnderPointer(double x, double y) {
 		for(int i = windows.size() - 1; i >= 0; i--) {
 			WindowElement element = windows.get(i);
 			
-			float gx = (float) x - element.x;
-			float gy = (float) y - element.y;
-			
-			float sx = scale * gx;
-			float sy = scale * gy;
+			float sx = (float) x - element.x;
+			float sy = (float) y - element.y;
 			
 			for(WLCSurface surface = element.window.getSurfaceTreeLast(); surface != null; surface = surface.getPrevChild()) {
 				float rx = sx - surface.xSubpos;
@@ -294,6 +299,11 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public void mouseMoved(double x, double y) {
+		Size bounds = wlc.bridge.getOutputBounds();
+		
+		x *= guiScale;
+		y *= guiScale;
+		
 		if(resizeMode) {
 			wlc.bridge.sendMotionOutside();
 			
@@ -307,16 +317,16 @@ public class WindowManagerScreen extends Screen {
 				resizeLastY = y;
 			}
 			
-			int dx = (int) ((x - resizeLastX) * scale) / 2;
-			int dy = (int) ((y - resizeLastY) * scale) / 2;
+			int dx = (int) (x - resizeLastX) / 2;
+			int dy = (int) (y - resizeLastY) / 2;
 			resizeLastX = x;
 			resizeLastY = y;
 			
 			resizeWidth += dx;
 			resizeHeight += dy;
 			
-			resizeWidth = Math.clamp(resizeWidth, 0, 1920);
-			resizeHeight = Math.clamp(resizeHeight, 0, 1080);
+			resizeWidth = Math.clamp(resizeWidth, 0, bounds.width());
+			resizeHeight = Math.clamp(resizeHeight, 0, bounds.height());
 			
 //			WaylandCraft.LOGGER.info("RESIZE " + resizeWidth + ", " + resizeHeight + " [" + resizeInitialWidth + ", " + resizeInitialHeight + "]");
 			wlc.bridge.resizeToplevelInteractive(resizeToplevel, resizeWidth, resizeHeight);
@@ -336,6 +346,9 @@ public class WindowManagerScreen extends Screen {
 		
 		if(super.mouseClicked(x, y, mouseButton)) return true;
 		
+		x *= guiScale;
+		y *= guiScale;
+		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
 		if(hovered != null) {
 			wlc.bridge.sendButton(0x110 + mouseButton, 1);
@@ -353,6 +366,9 @@ public class WindowManagerScreen extends Screen {
 		}
 		
 		if(super.mouseReleased(x, y, mouseButton)) return true;
+		
+		x *= guiScale;
+		y *= guiScale;
 		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
 		if(hovered != null) {
@@ -422,10 +438,10 @@ public class WindowManagerScreen extends Screen {
 	}
 	
 	private void prepareToplevel(WLCToplevel toplevel) {
-		float x = margin + Math.max(0, areaWidth / 2 - (toplevel.geometry.width() / 2) / scale);
-		float y = topMargin + Math.max(0, areaHeight / 2 - (toplevel.geometry.height() / 2) / scale);
-		x -= toplevel.geometry.x() / scale;
-		y -= toplevel.geometry.y() / scale;
+		float x = margin * guiScale + Math.max(0, areaWidth * guiScale / 2 - toplevel.geometry.width() / 2);
+		float y = topMargin * guiScale + Math.max(0, areaHeight * guiScale / 2 - toplevel.geometry.height() / 2);
+		x -= toplevel.geometry.x();
+		y -= toplevel.geometry.y();
 		
 		windows.add(new WindowElement(toplevel, x, y));
 		
@@ -437,14 +453,14 @@ public class WindowManagerScreen extends Screen {
 		if(tree.window instanceof WLCPopup) {
 			WLCPopup popup = (WLCPopup) tree.window;
 			
-			x += popup.getParent().geometry.x() / scale;
-			y += popup.getParent().geometry.y() / scale;
+			x += popup.getParent().geometry.x();
+			y += popup.getParent().geometry.y();
 			
-			x += popup.offsetX / scale;
-			y += popup.offsetY / scale;
+			x += popup.offsetX;
+			y += popup.offsetY;
 			
-			x -= popup.geometry.x() / scale;
-			y -= popup.geometry.y() / scale;
+			x -= popup.geometry.x();
+			y -= popup.geometry.y();
 			
 			windows.add(new WindowElement(popup, x, y));
 		}

@@ -18,6 +18,7 @@ import dev.evvie.waylandcraft.bridge.WLCPopup;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
+import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.gui.WindowManagerScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.ModInitializer;
@@ -156,8 +157,10 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			if(grabbedDisplay != null && !grabbedDisplay.isAlive()) grabbedDisplay = null;
 			if(grabbedDisplay != null) anchorToCamera(grabbedDisplay, context.camera());
 			
+			boolean inWMScreen = Minecraft.getInstance().screen instanceof WindowManagerScreen;
+			
 			// Make sure the toplevels are focused in their respective order and being refocused when a toplevel disappears
-			if(!(Minecraft.getInstance().screen instanceof WindowManagerScreen)) {
+			if(!inWMScreen) {
 				WLCToplevel focus = bridge.getMostToLeastRecentFocus()
 						.filter((t) -> hasDisplayFor(t))
 						.findFirst()
@@ -174,7 +177,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			displays.forEach((w) -> w.render(context));
 			
 			sendMotionEvents();
-			updateOutputSize();
+			updateOutputSize(inWMScreen);
 		});
 		
 		ClientTickEvents.END_CLIENT_TICK.register((mc) -> {
@@ -252,24 +255,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		});
 	}
 	
-	private void updateOutputSize() {
+	private void updateOutputSize(boolean inWMScreen) {
 		int outputWidth = Minecraft.getInstance().getWindow().getWidth();
 		int outputHeight = Minecraft.getInstance().getWindow().getHeight();
-		bridge.resizeOutput(outputWidth, outputHeight);
 		
-		for(WLCToplevel toplevel : bridge.getToplevels()) {
-			int w = toplevel.geometry.width();
-			int h = toplevel.geometry.height();
-			
-			if(w <= outputWidth && h <= outputHeight) {
-				continue;
-			}
-			
-			toplevel.restoreGeometry = null;
-			
-			w = Math.min(w, outputWidth);
-			h = Math.min(h, outputHeight);
-			bridge.resizeToplevelOverride(toplevel, w, h);
+		Size size = bridge.getOutputSize();
+		if(size.width() != outputWidth || size.height() != outputHeight) {
+			bridge.resizeOutput(outputWidth, outputHeight);
+			if(!inWMScreen) bridge.setOutputBounds(outputWidth, outputHeight);
 		}
 	}
 	

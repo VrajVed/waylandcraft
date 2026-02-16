@@ -1,6 +1,6 @@
 use crate::WLCState;
 use smithay::{
-    utils::{Size, Physical},
+    utils::{Size, Logical},
     reexports::{
         wayland_server::{
             protocol::{
@@ -14,7 +14,9 @@ use smithay::{
 
 pub struct WLCOutput {
     pub outputs: Vec<WlOutput>,
-    size: Size<i32, Physical>,
+    size: Size<i32, Logical>,
+    // size of content area
+    bounds: Size<i32, Logical>,
     display_handle: DisplayHandle,
 }
 
@@ -23,6 +25,7 @@ impl WLCOutput {
         WLCOutput {
             outputs: vec![],
             size: Size::new(1920, 1080),
+            bounds: Size::new(1920, 1080),
             display_handle: display_handle.clone(),
         }
     }
@@ -31,12 +34,12 @@ impl WLCOutput {
         self.display_handle.create_global::<WLCState, WlOutput, ()>(4, ());
     }
 
-    pub fn width(&self) -> i32 {
-        self.size.w
+    pub fn size(&self) -> Size<i32, Logical> {
+        self.size.clone()
     }
 
-    pub fn height(&self) -> i32 {
-        self.size.h
+    pub fn bounds(&self) -> Size<i32, Logical> {
+        self.bounds.clone()
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
@@ -48,6 +51,10 @@ impl WLCOutput {
                 output.done();
             }
         }
+    }
+
+    pub fn set_bounds(&mut self, width: i32, height: i32) {
+        self.bounds = Size::new(width, height);
     }
 }
 
