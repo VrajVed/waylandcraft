@@ -3,6 +3,7 @@ use crate::egl::EGLHelper;
 use crate::seat::WLCSeatState;
 use crate::ddm::WLCDataState;
 use crate::xdg_spec::XDGSpecHelper;
+use crate::output::WLCOutput;
 use std::sync::Arc;
 use std::ops::DerefMut;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
@@ -34,7 +35,6 @@ use smithay::{
         },
         buffer::BufferHandler,
         shm::{ShmState, ShmHandler},
-        output::OutputHandler,
         shell::xdg::{
             XdgShellState, XdgShellHandler, ToplevelSurface, PopupSurface,
             PositionerState
@@ -52,13 +52,12 @@ use smithay::{
         },
         drm::DrmNode,
     },
-    output::{self, Output, PhysicalProperties, Subpixel},
     input::{
         SeatState, SeatHandler,
     },
     utils::Serial,
-    delegate_compositor, delegate_shm, delegate_output, delegate_xdg_shell,
-    delegate_viewporter, delegate_single_pixel_buffer, delegate_dmabuf
+    delegate_compositor, delegate_shm, delegate_xdg_shell, delegate_viewporter,
+    delegate_single_pixel_buffer, delegate_dmabuf
 };
 
 mod bridge;
@@ -66,6 +65,7 @@ mod egl;
 mod seat;
 mod ddm;
 mod xdg_spec;
+mod output;
 
 pub(crate) struct WaylandCraft<'a> {
     pub state: WLCState,
@@ -88,6 +88,7 @@ pub struct WLCState {
     pub requests: WindowRequests,
     pub seat: WLCSeatState,
     pub data: WLCDataState,
+    pub output: WLCOutput,
 }
 
 #[derive(Default)]
@@ -107,7 +108,6 @@ impl WLCState {
         let viewporter_state = ViewporterState::new::<WLCState>(&disp);
         let single_pixel_buffer_state =
             SinglePixelBufferState::new::<WLCState>(&disp);
-        register_virtual_output(&disp);
 
         let mut dmabuf_state = DmabufState::new();
         let dmabuf_global = init_dmabuf(&disp, &mut dmabuf_state, egl);
@@ -117,6 +117,9 @@ impl WLCState {
 
         let data = WLCDataState::new(&disp);
         data.create_global();
+
+        let output = WLCOutput::new(&disp);
+        output.create_global();
 
         Self {
             display_handle: disp.clone(),
@@ -131,6 +134,7 @@ impl WLCState {
             requests: WindowRequests::default(),
             seat,
             data,
+            output,
         }
     }
 }
@@ -194,8 +198,6 @@ impl DmabufHandler for WLCState {
         let _ = notifier.successful::<WLCState>();
     }
 }
-
-impl OutputHandler for WLCState {}
 
 // Dummy SeatHandler impl neeeded for XdgPopup Dispatch for delegate_xdg_shell
 impl SeatHandler for WLCState {
@@ -298,27 +300,6 @@ pub fn get_time() -> u32 {
     time as u32
 }
 
-fn register_virtual_output(disp: &DisplayHandle) {
-    let output = Output::new(
-        "output-0".into(),
-        PhysicalProperties {
-            size: (0, 0).into(),
-            subpixel: Subpixel::Unknown,
-            make: "Virtual".into(),
-            model: "Monitor".into(),
-        },
-    );
-    let mode = output::Mode { size: (1920, 1080).into(), refresh: 60000 };
-    output.set_preferred(mode);
-    output.change_current_state(
-        Some(mode),
-        None,
-        None,
-        Some((0, 0).into())
-    );
-    output.create_global::<WLCState>(&disp);
-}
-
 pub(crate) fn wlc_init(
     egl: EGLHelper
 ) -> Result<WaylandCraft<'static>, Box<dyn std::error::Error>> {
@@ -416,7 +397,6 @@ impl<'a> WaylandCraft<'a> {
 
 delegate_compositor!(WLCState);
 delegate_shm!(WLCState);
-delegate_output!(WLCState);
 delegate_xdg_shell!(WLCState);
 delegate_viewporter!(WLCState);
 delegate_single_pixel_buffer!(WLCState);
