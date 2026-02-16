@@ -184,6 +184,7 @@ public class WaylandCraftBridge {
 		long[] unmaximizeRequests = unmaximizeReq(instance);
 		long[] fullscreenRequests = fullscreenReq(instance);
 		long[] unfullscreenRequests = unfullscreenReq(instance);
+		long[] fullscreened = fullscreened(instance);
 		
 		// Reset surface visited state
 		for(WLCSurface surface : surfaces) {
@@ -201,11 +202,13 @@ public class WaylandCraftBridge {
 			toplevel.title = toplevelTitle(toplevel.getHandle());
 			toplevel.appID = toplevelAppID(toplevel.getHandle());
 			
-			if(ArrayUtils.contains(minimizeRequests, handle)) toplevel.minimizeRequest = true;
-			if(ArrayUtils.contains(maximizeRequests, handle)) toplevel.maximizeRequest = true;
-			if(ArrayUtils.contains(unmaximizeRequests, handle)) toplevel.unmaximizeRequest = true;
-			if(ArrayUtils.contains(fullscreenRequests, handle)) toplevel.fullscreenRequest = true;
-			if(ArrayUtils.contains(unfullscreenRequests, handle)) toplevel.unfullscreenRequest = true;
+			if(ArrayUtils.contains(minimizeRequests, handle)) toplevel.requests.minimize = true;
+			if(ArrayUtils.contains(maximizeRequests, handle)) toplevel.requests.maximize= true;
+			if(ArrayUtils.contains(unmaximizeRequests, handle)) toplevel.requests.unmaximize = true;
+			if(ArrayUtils.contains(fullscreenRequests, handle)) toplevel.requests.fullscreen = true;
+			if(ArrayUtils.contains(unfullscreenRequests, handle)) toplevel.requests.unfullscreen = true;
+			
+			toplevel.fullscreen = ArrayUtils.contains(fullscreened, handle);
 		}
 		
 		// Create new popups when necessary
@@ -435,6 +438,9 @@ public class WaylandCraftBridge {
 	private static native long[] fullscreenReq(long instance);
 	// Collect all toplevels that have sent an unfullscreen request and clear the list
 	private static native long[] unfullscreenReq(long instance);
+	
+	// All toplevels that are currently in fullscreen
+	private static native long[] fullscreened(long instance);
 	
 	private static native void toplevelMaximize(long instance, long handle);
 	private static native void toplevelFullscreen(long instance, long handle);

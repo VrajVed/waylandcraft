@@ -102,21 +102,21 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			displays.removeIf((w) -> !w.isAlive());
 			
 			// Hide all windows that were minimized and unset minimize requested state
-			displays.removeIf((w) -> w.window instanceof WLCToplevel && ((WLCToplevel) w.window).minimizeRequest);
-			Stream.of(bridge.getToplevels()).forEach((t) -> t.minimizeRequest = false);
+			displays.removeIf((w) -> w.window instanceof WLCToplevel && ((WLCToplevel) w.window).requests.minimize);
+			Stream.of(bridge.getToplevels()).forEach((t) -> t.requests.minimize = false);
 			
 			// Handle any maximize or unmaximize requests
 			for(WLCToplevel toplevel : bridge.getToplevels()) {
-				if(toplevel.maximizeRequest && toplevel.unmaximizeRequest) {
+				if(toplevel.requests.maximize && toplevel.requests.unmaximize) {
 					// Both requests shouldn't happen at the same time
 					toplevel.restoreGeometry = null;
 				}
-				else if(toplevel.maximizeRequest) {
+				else if(toplevel.requests.maximize) {
 					// Maximize toplevel and store its old geometry
 					toplevel.restoreGeometry = toplevel.geometry;
 					bridge.maximizeToplevel(toplevel);
 				}
-				else if(toplevel.unmaximizeRequest) {
+				else if(toplevel.requests.unmaximize) {
 					// Unmaximize toplevel and attempt to restore old geometry
 					SurfaceGeometry newGeometry = toplevel.restoreGeometry;
 					if(newGeometry == null) newGeometry = toplevel.geometry;
@@ -126,21 +126,21 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 					toplevel.restoreGeometry = null;
 				}
 				
-				toplevel.maximizeRequest = toplevel.unmaximizeRequest = false;
+				toplevel.requests.maximize = toplevel.requests.unmaximize = false;
 			}
 			
 			// Handle any fullscreen or unfullscreen requests
 			for(WLCToplevel toplevel : bridge.getToplevels()) {
-				if(toplevel.fullscreenRequest && toplevel.unfullscreenRequest) {
+				if(toplevel.requests.fullscreen && toplevel.requests.unfullscreen) {
 					// Both requests shouldn't happen at the same time
 					toplevel.restoreGeometry = null;
 				}
-				else if(toplevel.fullscreenRequest) {
+				else if(toplevel.requests.fullscreen) {
 					// Fullscreen toplevel and store its old geometry
 					toplevel.restoreGeometry = toplevel.geometry;
 					bridge.fullscreenToplevel(toplevel);
 				}
-				else if(toplevel.unfullscreenRequest) {
+				else if(toplevel.requests.unfullscreen) {
 					// Unfullscreen toplevel and attempt to restore old geometry
 					SurfaceGeometry newGeometry = toplevel.restoreGeometry;
 					if(newGeometry == null) newGeometry = toplevel.geometry;
@@ -150,7 +150,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 					toplevel.restoreGeometry = null;
 				}
 				
-				toplevel.fullscreenRequest = toplevel.unfullscreenRequest = false;
+				toplevel.requests.fullscreen = toplevel.requests.unfullscreen = false;
 			}
 			
 			if(grabbedDisplay != null && !grabbedDisplay.isAlive()) grabbedDisplay = null;

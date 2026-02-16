@@ -1065,6 +1065,35 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_keyboardUpdate<'l>(
 
 #[unsafe(no_mangle)]
 pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_fullscreened<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong
+) -> jarray {
+    let instance = jptr_to_instance(ptr);
+
+    let mut handles: Vec<jlong> = vec![];
+    for toplevel in instance.state.xdg_state.toplevel_surfaces() {
+        let fullscreen = toplevel
+            .current_state()
+            .states
+            .contains(xdg_toplevel::State::Fullscreen);
+        if !fullscreen { continue; }
+
+        let handle = insert_get_handle(
+            &mut instance.bridge.toplevels,
+            toplevel,
+        );
+        handles.push(handle);
+    }
+
+    let array = env.new_long_array(handles.len() as jsize).unwrap();
+    env.set_long_array_region(&array, 0, &handles).unwrap();
+    array.into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
 fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_outputResize<'l>(
     _env: JNIEnv<'l>,
     _class: JClass<'l>,
