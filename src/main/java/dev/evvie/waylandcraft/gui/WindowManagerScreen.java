@@ -46,7 +46,8 @@ public class WindowManagerScreen extends Screen {
 	
 	// GUI parameters (in GUI scale coordinates!!)
 	private final int margin = 3;
-	private final int topMargin = 52;
+	private final int leftMargin = 30;
+	private final int topMargin = 40;
 	private int areaWidth;
 	private int areaHeight;
 	private int guiScale;
@@ -63,10 +64,13 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	protected void init() {
-		areaWidth = width - margin * 2;
+		areaWidth = width - margin - leftMargin;
 		areaHeight = height - margin - topMargin;
 		
-		selector = new SelectorWidget<WLCToplevel>(margin, topMargin - 15, areaWidth, 15) {
+		int buttonWidth = width / 3 - 5;
+		int buttonHeight = 17;
+		
+		selector = new SelectorWidget<WLCToplevel>(leftMargin - 1, topMargin - 17, areaWidth + 2, 17) {
 			@Override
 			public Component titleForElement(WLCToplevel element) {
 				return Component.literal(Optional.ofNullable(element.title).or(() -> Optional.ofNullable(element.appID)).orElse(""));
@@ -90,26 +94,23 @@ public class WindowManagerScreen extends Screen {
 		};
 		addRenderableWidget(selector);
 		
-		int buttonWidth = width / 6;
-		int buttonHeight = 17;
-		
 		grabButton = Button.builder(Component.literal("Grab"), this::onGrabPressed)
-				.pos(width - margin - buttonWidth, margin)
+				.pos(width - buttonWidth - margin + 1, margin)
 				.size(buttonWidth, buttonHeight)
 				.build();
 		buttons.add(grabButton);
+		
+		resizeButton = Button.builder(Component.literal("Resize"), this::onResizePressed)
+				.pos(width / 2 - buttonWidth / 2, margin)
+				.size(buttonWidth, buttonHeight)
+				.build();
+		buttons.add(resizeButton);
 		
 		hideButton = Button.builder(Component.literal("Hide"), this::onHidePressed)
 				.pos(width - margin - buttonWidth, margin + buttonHeight)
 				.size(buttonWidth, buttonHeight)
 				.build();
 		buttons.add(hideButton);
-		
-		resizeButton = Button.builder(Component.literal("Resize"), this::onResizePressed)
-				.pos(width / 2 - buttonWidth / 2, margin + buttonHeight)
-				.size(buttonWidth, buttonHeight)
-				.build();
-		buttons.add(resizeButton);
 		
 		stickyButton = Button.builder(Component.literal("Sticky"), this::onStickyPressed)
 				.pos(margin, margin)
@@ -118,9 +119,10 @@ public class WindowManagerScreen extends Screen {
 		buttons.add(stickyButton);
 		
 		addRenderableWidget(grabButton);
-		addRenderableWidget(hideButton);
 		addRenderableWidget(resizeButton);
-		addRenderableWidget(stickyButton);
+		
+//		addRenderableWidget(hideButton);
+//		addRenderableWidget(stickyButton);
 	}
 	
 	private void onGrabPressed(Button button) {
@@ -186,11 +188,7 @@ public class WindowManagerScreen extends Screen {
 	public void render(GuiGraphics context, int i, int j, float f) {
 		super.renderBlurredBackground(f);
 		
-		context.hLine(margin, width - margin, topMargin - 1, Color.white.getRGB());
-		context.hLine(margin, width - margin, height - margin, Color.white.getRGB());
-		
-		context.vLine(margin, topMargin - 1, height - margin, Color.white.getRGB());
-		context.vLine(width - margin, topMargin - 1, height - margin, Color.white.getRGB());
+		context.renderOutline(leftMargin - 1, topMargin - 1, areaWidth + 2, areaHeight + 2, Color.white.getRGB());
 		
 		guiScale = (int) Minecraft.getInstance().getWindow().getGuiScale();
 		wlc.bridge.setOutputBounds(areaWidth * guiScale, areaHeight * guiScale);
@@ -458,7 +456,7 @@ public class WindowManagerScreen extends Screen {
 		float y;
 		
 		if(!toplevel.fullscreen) {
-			x = margin * guiScale + Math.max(0, areaWidth * guiScale / 2 - toplevel.geometry.width() / 2);
+			x = leftMargin * guiScale + Math.max(0, areaWidth * guiScale / 2 - toplevel.geometry.width() / 2);
 			y = topMargin * guiScale + Math.max(0, areaHeight * guiScale / 2 - toplevel.geometry.height() / 2);
 		}
 		else {
