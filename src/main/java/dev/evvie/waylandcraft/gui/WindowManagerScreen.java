@@ -1,6 +1,7 @@
 package dev.evvie.waylandcraft.gui;
 
 import java.awt.Color;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Optional;
 
@@ -23,8 +24,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.SpriteIconButton;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
 public class WindowManagerScreen extends Screen {
 	
@@ -33,8 +37,8 @@ public class WindowManagerScreen extends Screen {
 	private SelectorWidget<WLCToplevel> selector;
 	private ArrayList<Button> buttons = new ArrayList<Button>();
 	private Button grabButton;
-	private Button hideButton;
 	private Button resizeButton;
+	private Button hideButton;
 	private Button stickyButton;
 	
 	private boolean resizeMode = false;
@@ -106,23 +110,28 @@ public class WindowManagerScreen extends Screen {
 				.build();
 		buttons.add(resizeButton);
 		
-		hideButton = Button.builder(Component.literal("Hide"), this::onHidePressed)
-				.pos(width - margin - buttonWidth, margin + buttonHeight)
-				.size(buttonWidth, buttonHeight)
+		hideButton = SpriteIconButton.builder(Component.literal("Hide"), this::onHidePressed, true)
+				.sprite(new ResourceLocation("waylandcraft", "hide"), 15, 15)
+				.size(22, 22)
 				.build();
+		hideButton.setPosition(3, topMargin);
+		hideButton.setTooltip(Tooltip.create(Component.literal("Hide")));
+		hideButton.setTooltipDelay(Duration.ofMillis(700));
 		buttons.add(hideButton);
 		
-		stickyButton = Button.builder(Component.literal("Sticky"), this::onStickyPressed)
-				.pos(margin, margin)
-				.size(buttonWidth, buttonHeight)
+		stickyButton = SpriteIconButton.builder(Component.literal("Pin"), this::onStickyPressed, true)
+				.sprite(new ResourceLocation("waylandcraft", "pin"), 15, 15)
+				.size(22, 22)
 				.build();
+		stickyButton.setPosition(3, topMargin + 30);
+		stickyButton.setTooltip(Tooltip.create(Component.literal("Pin")));
+		stickyButton.setTooltipDelay(Duration.ofMillis(700));
 		buttons.add(stickyButton);
 		
 		addRenderableWidget(grabButton);
 		addRenderableWidget(resizeButton);
-		
-//		addRenderableWidget(hideButton);
-//		addRenderableWidget(stickyButton);
+		addRenderableWidget(hideButton);
+		addRenderableWidget(stickyButton);
 	}
 	
 	private void onGrabPressed(Button button) {
@@ -249,19 +258,19 @@ public class WindowManagerScreen extends Screen {
 		
 		GL33.glDisable(GL33.GL_BLEND);
 		
+		buttons.forEach((b) -> b.setFocused(false));
+		
 		if(focused != null) {
 			grabButton.active = true;
-			hideButton.active = wlc.hasDisplayFor(focused);
 			resizeButton.active = true;
+			hideButton.active = wlc.hasDisplayFor(focused);
 			stickyButton.active = true;
-			stickyButton.setMessage(Component.literal(wlc.stickyToplevel == focused ? "Unsticky" : "Sticky"));
 		}
 		else {
 			grabButton.active = false;
-			hideButton.active = false;
 			resizeButton.active = false;
+			hideButton.active = false;
 			stickyButton.active = false;
-			stickyButton.setMessage(Component.literal("Sticky"));
 		}
 		
 		buttons.forEach((b) -> b.visible = true);
