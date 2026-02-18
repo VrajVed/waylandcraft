@@ -39,7 +39,7 @@ public class WindowManagerScreen extends Screen {
 	private Button grabButton;
 	private Button resizeButton;
 	private Button hideButton;
-	private Button stickyButton;
+	private Button pinButton;
 	
 	private boolean resizeMode = false;
 	private WLCToplevel resizeToplevel = null;
@@ -119,19 +119,19 @@ public class WindowManagerScreen extends Screen {
 		hideButton.setTooltipDelay(Duration.ofMillis(700));
 		buttons.add(hideButton);
 		
-		stickyButton = SpriteIconButton.builder(Component.literal("Pin"), this::onStickyPressed, true)
+		pinButton = SpriteIconButton.builder(Component.literal("Pin"), this::onPinPressed, true)
 				.sprite(new ResourceLocation("waylandcraft", "pin"), 15, 15)
 				.size(22, 22)
 				.build();
-		stickyButton.setPosition(3, topMargin + 30);
-		stickyButton.setTooltip(Tooltip.create(Component.literal("Pin")));
-		stickyButton.setTooltipDelay(Duration.ofMillis(700));
-		buttons.add(stickyButton);
+		pinButton.setPosition(3, topMargin + 30);
+		pinButton.setTooltip(Tooltip.create(Component.literal("Pin")));
+		pinButton.setTooltipDelay(Duration.ofMillis(700));
+		buttons.add(pinButton);
 		
 		addRenderableWidget(grabButton);
 		addRenderableWidget(resizeButton);
 		addRenderableWidget(hideButton);
-		addRenderableWidget(stickyButton);
+		addRenderableWidget(pinButton);
 	}
 	
 	private void onGrabPressed(Button button) {
@@ -160,11 +160,11 @@ public class WindowManagerScreen extends Screen {
 		resizeLastX = resizeLastY = Double.NaN;
 	}
 	
-	private void onStickyPressed(Button button) {
+	private void onPinPressed(Button button) {
 		if(focused == null) return;
 		
-		if(wlc.stickyToplevel != focused) wlc.stickyToplevel = focused;
-		else wlc.stickyToplevel = null;
+		if(wlc.pinnedToplevel != focused) wlc.pinnedToplevel = focused;
+		else wlc.pinnedToplevel = null;
 	}
 	
 	private void exitResizeMode() {
@@ -264,13 +264,13 @@ public class WindowManagerScreen extends Screen {
 			grabButton.active = true;
 			resizeButton.active = true;
 			hideButton.active = wlc.hasDisplayFor(focused);
-			stickyButton.active = true;
+			pinButton.active = true;
 		}
 		else {
 			grabButton.active = false;
 			resizeButton.active = false;
 			hideButton.active = false;
-			stickyButton.active = false;
+			pinButton.active = false;
 		}
 		
 		buttons.forEach((b) -> b.visible = true);
