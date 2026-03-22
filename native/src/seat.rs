@@ -155,6 +155,8 @@ impl WLCSeatState {
     }
 
     fn pointer_focus(&self, surface: Option<&WlSurface>, x: f64, y: f64) {
+        let serial = new_serial();
+
         // Unfocus any pointers currently focused on the wrong surface
         self.for_all_pointers(|pointer, data| {
             let focus = match &data.focus {
@@ -166,7 +168,7 @@ impl WLCSeatState {
                 None => true,
             };
             if unfocus {
-                pointer.leave(new_serial(), focus);
+                pointer.leave(serial, focus);
                 self.pointer_frame(pointer);
                 data.focus = None;
             }
@@ -186,7 +188,7 @@ impl WLCSeatState {
             // Client does not own surface
             if surface.client() != pointer.client() { return }
 
-            pointer.enter(new_serial(), surface, x, y);
+            pointer.enter(serial, surface, x, y);
             self.pointer_frame(pointer);
             data.focus = Some(surface.clone());
         });
@@ -240,10 +242,11 @@ impl WLCSeatState {
     }
 
     pub fn pointer_button(&mut self, button: u32, state: ButtonState) {
+        let serial = new_serial();
         self.for_all_pointers(|pointer, data| {
             if !data.focus.is_some() { return }
 
-            pointer.button(new_serial(), get_time(), button, state);
+            pointer.button(serial, get_time(), button, state);
             self.pointer_frame(pointer);
         });
     }
@@ -275,6 +278,7 @@ impl WLCSeatState {
     pub fn keyboard_focus(&mut self, surface: WlSurface) {
         if !surface.is_alive() { return };
         let client = surface.client().unwrap();
+        let serial = new_serial();
 
         self.for_all_keyboards(|keyboard, data| {
             let keyboard_client = keyboard.client().unwrap();
@@ -282,7 +286,7 @@ impl WLCSeatState {
             // If WlKeyboard belongs to different client, make it lose focus
             if keyboard_client != client {
                 if let Some(focus) = &data.focus {
-                    keyboard.leave(new_serial(), focus);
+                    keyboard.leave(serial, focus);
                     data.focus = None;
                 }
                 return;
@@ -296,17 +300,17 @@ impl WLCSeatState {
                     // Surface already focused
                     return;
                 }
-                keyboard.leave(new_serial(), focus);
+                keyboard.leave(serial, focus);
                 data.focus = None;
             }
 
             // Keyboard should enter surface
             let pressed = self.serialize_pressed_keys();
 
-            keyboard.enter(new_serial(), &surface, pressed);
+            keyboard.enter(serial, &surface, pressed);
             data.focus = Some(surface.clone());
 
-            self.send_modifiers(&keyboard);
+            self.send_modifiers(&keyboard, serial);
         });
     }
 
@@ -325,14 +329,15 @@ impl WLCSeatState {
     }
 
     fn keyboard_refocus(&mut self) {
+        let serial = new_serial();
         self.for_all_keyboards(|keyboard, data| {
             if let Some(focus) = &data.focus {
                 if !focus.is_alive() { return }
 
                 let pressed = self.serialize_pressed_keys();
-                keyboard.leave(new_serial(), focus);
-                keyboard.enter(new_serial(), focus, pressed);
-                self.send_modifiers(&keyboard);
+                keyboard.leave(serial, focus);
+                keyboard.enter(serial, focus, pressed);
+                self.send_modifiers(&keyboard, serial);
             }
         });
     }
@@ -351,10 +356,10 @@ impl WLCSeatState {
         self.keyboard_refocus();
     }
 
-    fn send_modifiers(&self, keyboard: &WlKeyboard) {
+    fn send_modifiers(&self, keyboard: &WlKeyboard, serial: u32) {
         if !self.kb_active {
             keyboard.modifiers(
-                new_serial(),
+                serial,
                 0, // MODS_DEPRESSED
                 0, // MODS_LATCHED
                 0, // MODS_LOCKED
@@ -363,7 +368,7 @@ impl WLCSeatState {
             return;
         }
         keyboard.modifiers(
-            new_serial(),
+            serial,
             self.xkb_state.serialize_mods(xkb::STATE_MODS_DEPRESSED),
             self.xkb_state.serialize_mods(xkb::STATE_MODS_LATCHED),
             self.xkb_state.serialize_mods(xkb::STATE_MODS_LOCKED),
@@ -372,9 +377,10 @@ impl WLCSeatState {
     }
 
     pub fn keyboard_unfocus(&mut self) {
+        let serial = new_serial();
         self.for_all_keyboards(|keyboard, data| {
             if let Some(focus) = &data.focus {
-                keyboard.leave(new_serial(), focus);
+                keyboard.leave(serial, focus);
                 data.focus = None;
             }
         });
@@ -382,10 +388,11 @@ impl WLCSeatState {
 
     pub fn keyboard_key(&self, key: u32, state: KeyState) {
         if !self.kb_active { return }
+        let serial = new_serial();
         self.for_all_keyboards(|keyboard, data| {
             if data.focus.is_some() {
-                keyboard.key(new_serial(), get_time(), key - 8, state);
-                self.send_modifiers(&keyboard);
+                keyboard.key(serial, get_time(), key - 8, state);
+                self.send_modifiers(&keyboard, serial);
             }
         });
     }
