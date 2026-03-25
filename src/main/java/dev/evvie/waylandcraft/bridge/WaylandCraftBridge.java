@@ -28,6 +28,8 @@ public class WaylandCraftBridge {
 	
 	private ArrayList<WLCToplevel> newToplevels = new ArrayList<WLCToplevel>();
 	
+	private @Nullable Integer lastMoveRequestSerial = null;
+	
 	static {
 		System.loadLibrary("waylandcraft");
 	}
@@ -196,6 +198,11 @@ public class WaylandCraftBridge {
 		long[] unfullscreenRequests = unfullscreenReq(instance);
 		long[] fullscreened = fullscreened(instance);
 		
+		int[] moveRequest = moveRequest(instance);
+		if(moveRequest != null) {
+			lastMoveRequestSerial = moveRequest[0];
+		}
+		
 		// Reset surface visited state
 		for(WLCSurface surface : surfaces) {
 			surface.visited = false;
@@ -344,8 +351,8 @@ public class WaylandCraftBridge {
 		pointerUnlock(instance);
 	}
 	
-	public void sendButton(int button, int state) {
-		pointerButton(instance, button, state);
+	public int sendButton(int button, int state) {
+		return pointerButton(instance, button, state);
 	}
 	
 	public void sendScroll(int axis, double value) {
@@ -426,6 +433,13 @@ public class WaylandCraftBridge {
 		toplevelFullscreen(instance, toplevel.getHandle());
 	}
 	
+	public Integer checkMoveRequest() {
+		if(lastMoveRequestSerial == null) return null;
+		int serial = lastMoveRequestSerial.intValue();
+		lastMoveRequestSerial = null;
+		return serial;
+	}
+	
 	public void resizeOutput(int width, int height) {
 		outputResize(instance, width, height);
 	}
@@ -482,6 +496,9 @@ public class WaylandCraftBridge {
 	// Collect all toplevels that have sent an unfullscreen request and clear the list
 	private static native long[] unfullscreenReq(long instance);
 	
+	// Collect up to one serial of a sent interactive move request
+	private static native int[] moveRequest(long instance);
+	
 	// All toplevels that are currently in fullscreen
 	private static native long[] fullscreened(long instance);
 	
@@ -529,7 +546,7 @@ public class WaylandCraftBridge {
 	private static native void pointerLeave(long instance);
 	
 	// Create pointer button event. `button` has to be the linux button code, state is 1 for pressed, 0 for released
-	private static native void pointerButton(long instance, int button, int state);
+	private static native int pointerButton(long instance, int button, int state);
 	
 	// Create pointer axis event. `axis` is the scroll axis (0 for vertical, 1 for horizontal)
 	private static native void pointerAxis(long instance, int axis, double value);

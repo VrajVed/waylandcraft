@@ -95,6 +95,7 @@ pub struct WindowRequests {
     pub unmaximize: Vec<ToplevelSurface>,
     pub fullscreen: Vec<ToplevelSurface>,
     pub unfullscreen: Vec<ToplevelSurface>,
+    pub move_interactive: Vec<Serial>,
 }
 
 impl WLCState {
@@ -255,6 +256,15 @@ impl XdgShellHandler for WLCState {
 
     fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
         self.requests.unfullscreen.push(surface);
+    }
+
+    fn move_request(
+        &mut self,
+        _surface: ToplevelSurface,
+        _seat: WlSeat,
+        serial: Serial
+    ) {
+        self.requests.move_interactive.push(serial);
     }
 }
 

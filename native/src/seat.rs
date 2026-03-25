@@ -253,7 +253,7 @@ impl WLCSeatState {
         });
     }
 
-    pub fn pointer_button(&mut self, button: u32, state: ButtonState) {
+    pub fn pointer_button(&mut self, button: u32, state: ButtonState) -> u32 {
         let serial = new_serial();
         self.for_all_pointers(|pointer, data| {
             if !data.focus.is_some() { return }
@@ -261,6 +261,7 @@ impl WLCSeatState {
             pointer.button(serial, get_time(), button, state);
             self.pointer_frame(pointer);
         });
+        serial
     }
 
     pub fn pointer_axis(&self, axis: Axis, value: f64) {

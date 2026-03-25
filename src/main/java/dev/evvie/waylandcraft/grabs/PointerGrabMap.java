@@ -1,6 +1,8 @@
 package dev.evvie.waylandcraft.grabs;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+
+import org.jetbrains.annotations.Nullable;
 
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.WindowDisplay;
@@ -13,14 +15,14 @@ public class PointerGrabMap {
 	
 	private WaylandCraft wlc;
 	private PointerGrab exclusiveGrab = null;
-	private ImplicitGrab implicitGrab = null;
+	private ImplicitGrabs implicitGrabs = null;
 	
 	public PointerGrabMap(WaylandCraft wlc) {
 		this.wlc = wlc;
 	}
 	
 	public boolean isGrabActive() {
-		return implicitGrab != null || exclusiveGrab != null;
+		return implicitGrabs != null || exclusiveGrab != null;
 	}
 	
 	public boolean isExclusiveGrabActive() {
@@ -28,18 +30,18 @@ public class PointerGrabMap {
 	}
 	
 	public boolean isGrabActive(int button) {
-		return (exclusiveGrab != null && exclusiveGrab.button == button) || (implicitGrab != null && implicitGrab.pressedButtons.contains(button));
+		return (exclusiveGrab != null && exclusiveGrab.button == button) || (implicitGrabs != null && implicitGrabs.contains(button));
 	}
 	
 	// Start implicit pointer grab on a surface. Surface MUST have active pointer focus!
 	public void startImplicit(WindowDisplay window, WLCSurface surface, int button) {
 		if(isExclusiveGrabActive()) return;
 		
-		if(implicitGrab == null) implicitGrab = new ImplicitGrab(window, surface);
-		if(implicitGrab.pressedButtons.contains(button)) return;
+		if(implicitGrabs == null) implicitGrabs = new ImplicitGrabs(window, surface);
+		if(implicitGrabs.contains(button)) return;
 		
-		implicitGrab.pressedButtons.add(button);
-		wlc.bridge.sendButton(0x110 + button, 1);
+		int serial = wlc.bridge.sendButton(0x110 + button, 1);
+		implicitGrabs.add(window, button, serial);
 	}
 	
 	public void startExclusive(PointerGrab grab) {
@@ -67,12 +69,12 @@ public class PointerGrabMap {
 			return;
 		}
 		
-		if(implicitGrab == null) return;
+		if(implicitGrabs == null) return;
 		
-		DisplayHitResult hitResult = implicitGrab.window.intersect(pos, view);
+		DisplayHitResult hitResult = implicitGrabs.window.intersect(pos, view);
 		if(hitResult == null) return;
 		
-		Vec3 relativeCoords = hitResult.surfaceLocalOrigin.subtract(implicitGrab.surface.xSubpos, implicitGrab.surface.ySubpos, 0);
+		Vec3 relativeCoords = hitResult.surfaceLocalOrigin.subtract(implicitGrabs.surface.xSubpos, implicitGrabs.surface.ySubpos, 0);
 		wlc.bridge.sendMotion(relativeCoords.x, relativeCoords.y);
 	}
 	
@@ -97,21 +99,23 @@ public class PointerGrabMap {
 			return;
 		}
 		
-		if(implicitGrab == null) return;
+		if(implicitGrabs == null) return;
 		
-		if(implicitGrab.pressedButtons.contains(button)) {
+		if(implicitGrabs.contains(button)) {
 			wlc.bridge.sendButton(0x110 + button, 0);
-			implicitGrab.pressedButtons.remove(button);
+			implicitGrabs.remove(button);
 		}
 		
-		if(implicitGrab.pressedButtons.isEmpty()) implicitGrab = null;
+		if(implicitGrabs.isEmpty()) implicitGrabs = null;
 	}
 	
 	private void releaseImplicit() {
-		if(implicitGrab == null) return;
+		if(implicitGrabs == null) return;
 		
-		implicitGrab.pressedButtons.forEach((button) -> wlc.bridge.sendButton(0x110 + button, 0));
-		implicitGrab = null;
+		for(ButtonPress press : implicitGrabs.getPressed()) {
+			wlc.bridge.sendButton(0x110 + press.button, 0);
+		}
+		implicitGrabs = null;
 	}
 	
 	public void releaseAll() {
@@ -127,18 +131,55 @@ public class PointerGrabMap {
 		exclusiveGrab = null;
 	}
 	
+	public @Nullable ButtonPress releaseImplicitMatching(int serial) {
+		if(isExclusiveGrabActive()) return null;
+		if(implicitGrabs == null) return null;
+		
+		for(ButtonPress press : implicitGrabs.getPressed()) {
+			if(press.serial == serial) {
+				release(press.button);
+				return press;
+			}
+		}
+		return null;
+	}
+	
 	// Not a real pointer grab, just a way to represent active button presses on a WindowDisplay
-	private static class ImplicitGrab {
+	private static class ImplicitGrabs {
 		
 		public final WindowDisplay window;
 		public final WLCSurface surface;
-		public HashSet<Integer> pressedButtons = new HashSet<Integer>();
+		private ArrayList<ButtonPress> buttonsPressed = new ArrayList<ButtonPress>();
 		
-		public ImplicitGrab(WindowDisplay window, WLCSurface surface) {
+		public ImplicitGrabs(WindowDisplay window, WLCSurface surface) {
 			this.window = window;
 			this.surface = surface;
 		}
 		
+		public boolean contains(int button) {
+			return buttonsPressed.stream().anyMatch((press) -> press.button == button);
+		}
+		
+		public boolean isEmpty() {
+			return buttonsPressed.isEmpty();
+		}
+		
+		public void add(WindowDisplay display, int button, int serial) {
+			assert !contains(button);
+			buttonsPressed.add(new ButtonPress(display, button, serial));
+		}
+		
+		public void remove(int button) {
+			assert contains(button);
+			buttonsPressed.removeIf((press) -> press.button == button);
+		}
+		
+		public ButtonPress[] getPressed() {
+			return buttonsPressed.toArray(ButtonPress[]::new);
+		}
+		
 	}
+	
+	public static record ButtonPress(WindowDisplay window, int button, int serial) {}
 	
 }

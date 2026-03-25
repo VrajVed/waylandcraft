@@ -358,6 +358,31 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_unfullscreenReq<'l>(
     array.into_raw()
 }
 
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_moveRequest<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong
+) -> jarray {
+    let instance = jptr_to_instance(ptr);
+    let serial = instance
+        .state
+        .requests
+        .move_interactive
+        .pop();
+
+    let serial = match serial {
+        Some(s) => s,
+        None => { return std::ptr::null_mut() }
+    };
+
+    let serial = Into::<u32>::into(serial) as jint;
+    let array = env.new_int_array(1).unwrap();
+    env.set_int_array_region(&array, 0, &[ serial ]).unwrap();
+    array.into_raw()
+}
+
 #[allow(non_upper_case_globals)]
 const WLCSurface_class: &str = "dev/evvie/waylandcraft/bridge/WLCSurface";
 
@@ -959,16 +984,16 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_pointerButton<'l>(
     ptr: jlong,
     button: jint,
     state: jint
-) {
+) -> jint {
     let instance = jptr_to_instance(ptr);
 
     let state = match state {
         0 => ButtonState::Released,
         1 => ButtonState::Pressed,
-        _ => {return;}
+        _ => unreachable!(),
     };
 
-    instance.state.seat.pointer_button(button as u32, state);
+    instance.state.seat.pointer_button(button as u32, state) as jint
 }
 
 #[unsafe(no_mangle)]
