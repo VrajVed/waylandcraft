@@ -359,6 +359,10 @@ public class WaylandCraftBridge {
 		pointerAxis(instance, axis, value);
 	}
 	
+	public int getCursorShape() {
+		return cursorShape(instance);
+	}
+	
 	public void focusSurface(@Nullable WLCToplevel toplevel) {
 		long handle = 0;
 		if(toplevel != null) {
@@ -550,6 +554,9 @@ public class WaylandCraftBridge {
 	
 	// Create pointer axis event. `axis` is the scroll axis (0 for vertical, 1 for horizontal)
 	private static native void pointerAxis(long instance, int axis, double value);
+	
+	// Get active cursor image
+	private static native int cursorShape(long instance);
 	
 	// Set keyboard focus to a wayland surface. The handle may be 0 to unfocus any surfaces
 	private static native void keyboardFocus(long instance, long surfaceHandle);

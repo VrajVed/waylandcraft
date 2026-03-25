@@ -1018,6 +1018,18 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_pointerAxis<'l>(
 
 #[unsafe(no_mangle)]
 pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_cursorShape<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong
+) -> jint {
+    let instance = jptr_to_instance(ptr);
+
+    instance.state.seat.cursor_shape.unwrap_or(0) as jint
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
 fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_keyboardFocus<'l>(
     _env: JNIEnv<'l>,
     _class: JClass<'l>,

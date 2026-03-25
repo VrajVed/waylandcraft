@@ -32,6 +32,12 @@ use smithay::{
             zwp_confined_pointer_v1 as zwp_confined,
             zwp_confined_pointer_v1::ZwpConfinedPointerV1,
         },
+        wayland_protocols::wp::cursor_shape::v1::server::{
+            wp_cursor_shape_manager_v1,
+            wp_cursor_shape_manager_v1::WpCursorShapeManagerV1,
+            wp_cursor_shape_device_v1,
+            wp_cursor_shape_device_v1::WpCursorShapeDeviceV1,
+        },
     },
 };
 use xkbcommon::xkb::{self, Keymap};
@@ -44,6 +50,7 @@ pub struct WLCSeatState {
     pub keymap_file: SealedFile,
     pub xkb_context: xkb::Context,
     pub xkb_state: xkb::State,
+    pub cursor_shape: Option<u32>,
 }
 
 pub struct WLCPointerData {
@@ -141,6 +148,7 @@ impl WLCSeatState {
             keymap_file,
             xkb_context,
             xkb_state,
+            cursor_shape: None,
         }
     }
 
@@ -148,6 +156,7 @@ impl WLCSeatState {
         disp.create_global::<WLCState, WlSeat, ()>(10, ());
         disp.create_global::<WLCState, ZwpRelativePointerManagerV1, ()>(1, ());
         disp.create_global::<WLCState, ZwpPointerConstraintsV1, ()>(1, ());
+        disp.create_global::<WLCState, WpCursorShapeManagerV1, ()>(2, ());
     }
 
     fn pointer_frame(&self, pointer: &WlPointer) {
@@ -164,7 +173,7 @@ impl WLCSeatState {
         pointer.focus.as_ref().is_some_and(|s| s == surface)
     }
 
-    fn pointer_focus(&self, surface: Option<&WlSurface>, x: f64, y: f64) {
+    fn pointer_focus(&mut self, surface: Option<&WlSurface>, x: f64, y: f64) {
         let serial = new_serial();
 
         // Unfocus any pointers currently focused on the wrong surface
@@ -804,5 +813,67 @@ impl Dispatch<ZwpConfinedPointerV1, WlPointer> for WLCState {
         with_pointer_data(pointer, |data| {
             data.confined = None;
         });
+    }
+}
+
+impl GlobalDispatch<WpCursorShapeManagerV1, ()> for WLCState {
+    fn bind(
+        _state: &mut Self,
+        _handle: &DisplayHandle,
+        _client: &Client,
+        resource: New<WpCursorShapeManagerV1>,
+        _data: &(),
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        data_init.init(resource, ());
+    }
+}
+
+impl Dispatch<WpCursorShapeManagerV1, ()> for WLCState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _resource: &WpCursorShapeManagerV1,
+        request: wp_cursor_shape_manager_v1::Request,
+        _data: &(),
+        _disp: &DisplayHandle,
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wp_cursor_shape_manager_v1::Request::Destroy => {},
+            wp_cursor_shape_manager_v1::Request::GetPointer {
+                cursor_shape_device, ..
+            } => {
+                data_init.init(cursor_shape_device, ());
+            },
+            wp_cursor_shape_manager_v1::Request::GetTabletToolV2 {
+                cursor_shape_device, ..
+            } => {
+                data_init.init(cursor_shape_device, ());
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Dispatch<WpCursorShapeDeviceV1, ()> for WLCState {
+    fn request(
+        state: &mut Self,
+        _client: &Client,
+        _resource: &WpCursorShapeDeviceV1,
+        request: wp_cursor_shape_device_v1::Request,
+        _data: &(),
+        _disp: &DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            wp_cursor_shape_device_v1::Request::Destroy => {},
+            wp_cursor_shape_device_v1::Request::SetShape {
+                shape, ..
+            } => {
+                state.seat.cursor_shape = Some(shape.into());
+            },
+            _ => unreachable!(),
+        }
     }
 }

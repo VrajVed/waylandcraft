@@ -86,6 +86,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	public boolean playerUsingWindowItem = false;
 	
+	public int cursorShape = 0;
+	
 	@Override
 	public void onInitialize() {
 		WindowItem.register();
@@ -316,6 +318,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	private void processPointerMotion(Camera camera) {
+		this.cursorShape = 0;
+		
 		if(pointerCapture != null) {
 			if(!pointerCapture.surface.isAlive()) {
 				pointerCapture = null;
@@ -388,6 +392,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		if(hoveredDisplay != null) {
 			this.overridePickBlock = true;
+			this.cursorShape = bridge.getCursorShape();
 		}
 		
 		if(hoveredDisplay != null && hoveredDisplay.dist >= 0) {
