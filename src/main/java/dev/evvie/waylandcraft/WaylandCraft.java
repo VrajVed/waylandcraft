@@ -318,7 +318,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	private void processPointerMotion(Camera camera) {
-		this.cursorShape = 0;
+		cursorShape = 0;
 		
 		if(pointerCapture != null) {
 			if(!pointerCapture.surface.isAlive()) {
@@ -392,12 +392,16 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		if(hoveredDisplay != null) {
 			this.overridePickBlock = true;
-			this.cursorShape = bridge.getCursorShape();
 		}
 		
 		if(hoveredDisplay != null && hoveredDisplay.dist >= 0) {
 			WLCSurface surface = hoveredDisplay.surface;
 			Vec3 rel = hoveredDisplay.surfaceLocalRelative;
+			
+			int shape = bridge.takeCursorShape();
+			if(shape != 0) hoveredDisplay.target.cursorShape = shape;
+			
+			cursorShape = hoveredDisplay.target.cursorShape;
 			
 			bridge.sendMotionRefocus(surface, rel.x, rel.y);
 			

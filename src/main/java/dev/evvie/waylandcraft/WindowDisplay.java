@@ -32,6 +32,8 @@ public class WindowDisplay {
 	private int width;
 	private int height;
 	
+	public int cursorShape = 0;
+	
 	public WindowDisplay(WLCAbstractWindow window) {
 		this.window = window;
 		this.updateGeometry();

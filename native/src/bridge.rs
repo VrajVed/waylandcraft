@@ -1023,7 +1023,7 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_cursorShape<'l>(
 ) -> jint {
     let instance = jptr_to_instance(ptr);
 
-    instance.state.seat.cursor_shape.unwrap_or(0) as jint
+    instance.state.seat.cursor_shape.take().unwrap_or(0) as jint
 }
 
 #[unsafe(no_mangle)]
