@@ -12,20 +12,22 @@ public class DesktopEntry {
 	public final @Nullable String genericName;
 	public final @Nullable String exec;
 	public final boolean execTerminal;
+	public final boolean visible;
 	public final @Nullable ResourceLocation icon;
 	
-	public DesktopEntry(String appId, String name, String genericName, String exec, boolean execTerminal, ResourceLocation icon) {
+	public DesktopEntry(String appId, String name, String genericName, String exec, boolean execTerminal, boolean visible, ResourceLocation icon) {
 		this.appId = appId;
 		this.name = name;
 		this.genericName = genericName;
 		this.exec = exec;
 		this.execTerminal = execTerminal;
+		this.visible = visible;
 		this.icon = icon;
 	}
 	
 	@Override
 	public String toString() {
-		return "DesktopEntry [appId: " + appId + ", name: " + name + ", genericName: " + genericName + ", exec: '" + exec + "', execTerminal: " + execTerminal + ", icon: " + icon + "]";
+		return "DesktopEntry [appId: " + appId + ", name: " + name + ", genericName: " + genericName + ", exec: '" + exec + "', execTerminal: " + execTerminal + ", visible: " + visible + ", icon: " + icon + "]";
 	}
 	
 }

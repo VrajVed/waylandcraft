@@ -25,6 +25,7 @@ import dev.evvie.waylandcraft.grabs.MoveGrab;
 import dev.evvie.waylandcraft.grabs.PointerGrabMap;
 import dev.evvie.waylandcraft.grabs.PointerGrabMap.ImplicitGrab;
 import dev.evvie.waylandcraft.grabs.ResizeGrab;
+import dev.evvie.waylandcraft.gui.AppLauncherScreen;
 import dev.evvie.waylandcraft.gui.WaylandHudRenderer;
 import dev.evvie.waylandcraft.gui.WindowManagerScreen;
 import dev.evvie.waylandcraft.item.WindowItem;
@@ -72,6 +73,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public XDGDesktopManager xdgManager;
 	
 	public KeyMapping keyOpenScreen;
+	public KeyMapping keyOpenAppLauncher;
 	public KeyMapping keyCaptureKeyboard;
 	
 	public WindowInHandRenderer windowInHandRenderer = new WindowInHandRenderer();
@@ -103,6 +105,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		instance = this;
 		
 		keyOpenScreen = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.windowManager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KEYBIND_CATEGORY));
+		keyOpenAppLauncher = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.appLauncher", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, KEYBIND_CATEGORY));
 		keyCaptureKeyboard = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.captureKeyboard", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, KEYBIND_CATEGORY));
 		
 		WorldRenderEvents.END.register((ctx) -> this.renderWorld(ctx.camera()));
@@ -208,6 +211,11 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			keyboardCaptureMode = KeyboardCaptureMode.NONE;
 			pointerGrabs.releaseAll();
 			minecraft.setScreen(new WindowManagerScreen(WaylandCraft.instance));
+			return;
+		}
+		
+		if(keyOpenAppLauncher.consumeClick()) {
+			minecraft.setScreen(new AppLauncherScreen(WaylandCraft.instance));
 			return;
 		}
 		

@@ -16,6 +16,7 @@ pub struct RawDesktopEntry {
     pub generic_name: Option<String>,
     pub exec: Option<String>,
     pub exec_terminal: bool,
+    pub visible: bool,
     pub icon_path: Option<String>,
 }
 
@@ -32,6 +33,12 @@ impl XDGSpecHelper {
 
     fn to_raw(&self, entry: &DesktopEntry) -> RawDesktopEntry {
         let icon = self.resolve_icon_path(entry);
+        let mut visible = true;
+        if entry.hidden() || entry.no_display() {
+            visible = false;
+        } else if entry.only_show_in().is_some_and(|v| !v.is_empty()) {
+            visible = false;
+        }
 
         RawDesktopEntry {
             app_id: entry.id().into(),
@@ -40,6 +47,7 @@ impl XDGSpecHelper {
                 entry.generic_name(&self.locales).map(|c| c.into_owned()),
             exec: entry.exec().map(|s| s.into()),
             exec_terminal: entry.terminal(),
+            visible: visible,
             icon_path: icon.map(|p| p.into_os_string().into_string().unwrap()),
         }
     }

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.jetbrains.annotations.Nullable;
@@ -30,6 +31,13 @@ public class XDGDesktopManager {
 		this.loadSystemEntries();
 	}
 	
+	public List<DesktopEntry> entries() {
+		ArrayList<DesktopEntry> entries = new ArrayList<DesktopEntry>();
+		entries.addAll(systemEntries);
+		entries.addAll(localEntries);
+		return entries;
+	}
+	
 	private void loadSystemEntries() {
 		systemEntries = new ArrayList<DesktopEntry>();
 		for(RawDesktopEntry raw : wlc.bridge.loadSystemDesktopEntries()) {
@@ -47,7 +55,7 @@ public class XDGDesktopManager {
 			textureManager.register(iconLocation, icon);
 		}
 		
-		return new DesktopEntry(raw.appId, raw.name, raw.genericName, raw.exec, raw.execTerminal, iconLocation);
+		return new DesktopEntry(raw.appId, raw.name, raw.genericName, raw.exec, raw.execTerminal, raw.visible, iconLocation);
 	}
 	
 	public @Nullable DesktopEntry forAppId(String appId) {

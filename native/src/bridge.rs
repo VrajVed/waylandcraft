@@ -1557,6 +1557,7 @@ fn raw_desktop_entry_to_java<'l>(
     let generic_name: JString<'l> = to_jstr_opt!(&entry.generic_name);
     let exec: JString<'l> = to_jstr_opt!(&entry.exec);
     let exec_terminal: jboolean = entry.exec_terminal as jboolean;
+    let visible: jboolean = entry.visible as jboolean;
     let icon_path: JString<'l> = to_jstr_opt!(&entry.icon_path);
 
     let str_sig = "Ljava/lang/String;";
@@ -1567,6 +1568,7 @@ fn raw_desktop_entry_to_java<'l>(
     ctor_sig += str_sig; // genericName
     ctor_sig += str_sig; // exec
     ctor_sig += "Z"; // execTerminal
+    ctor_sig += "Z"; // visible
     ctor_sig += str_sig; // iconPath
     ctor_sig += ")V";
 
@@ -1576,6 +1578,7 @@ fn raw_desktop_entry_to_java<'l>(
         JValue::Object(&generic_name),
         JValue::Object(&exec),
         JValue::Bool(exec_terminal),
+        JValue::Bool(visible),
         JValue::Object(&icon_path),
     ];
 
