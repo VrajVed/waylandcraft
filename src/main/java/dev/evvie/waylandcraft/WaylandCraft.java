@@ -178,7 +178,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(playerUsingWindowItem) {
 			ItemStack item = Minecraft.getInstance().player.getUseItem();
 			if(item.is(WindowItem.WINDOW)) {
-				getOrCreateDisplay(WindowItem.getToplevel(item)).anchorToCamera(camera);
+				WLCToplevel toplevel = WindowItem.getToplevel(item);
+				
+				if(toplevel != null) {
+					getOrCreateDisplay(toplevel).anchorToCamera(camera);
+					WaylandCraft.instance.bridge.focusSurface(toplevel);
+				}
 			}
 			else playerUsingWindowItem = false;
 		}
