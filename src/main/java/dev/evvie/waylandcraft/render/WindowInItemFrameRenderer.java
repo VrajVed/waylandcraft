@@ -13,7 +13,7 @@ public class WindowInItemFrameRenderer {
 		if(toplevel.framebuffer == null) return;
 		
 		poseStack.pushPose();
-		poseStack.translate(-1.0f, -1.0f, -0.05f);
+		poseStack.translate(-1.0f, -1.0f, -0.01f);
 		poseStack.scale(2.0f, 2.0f, 1.0f);
 		
 		float width = toplevel.geometry.width();
