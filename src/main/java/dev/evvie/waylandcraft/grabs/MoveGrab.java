@@ -1,5 +1,6 @@
 package dev.evvie.waylandcraft.grabs;
 
+import dev.evvie.waylandcraft.CursorShape;
 import dev.evvie.waylandcraft.WindowDisplay;
 import dev.evvie.waylandcraft.WindowDisplay.DisplayHitResult;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
@@ -29,6 +30,8 @@ public class MoveGrab extends PointerGrab {
 	@Override
 	public void moveWorld(Vec3 pos, Vec3 view, Vec3 up) throws GrabDroppedException {
 		if(!window.isValid()) this.drop();
+		
+		wlc.cursorShape = CursorShape.ALL_RESIZE;
 		
 		DisplayHitResult hitResult = window.intersect(pos, view);
 		if(hitResult == null) return;
