@@ -29,11 +29,14 @@ pub struct WLCDataState {
     display_handle: DisplayHandle,
 }
 
+// Drag and drop session
+// `dropped` is set when the user successfully performed a drop over a surface
 pub struct WLCDndEvent {
     pub start_serial: u32,
     pub source: WlDataSource,
     pub focus: Option<WlSurface>,
     pub mime: Option<String>,
+    pub dropped: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -53,12 +56,15 @@ type WLCDataOffer = Arc<Mutex<WLCDataOfferData>>;
 struct WLCDataOfferData {
     // NOTE: The source is in the id space of the source client!!
     source: WlDataSource,
+    device: WlDataDevice,
 }
 
 type WLCDataDevice = Arc<Mutex<WLCDataDeviceData>>;
 struct WLCDataDeviceData {
+    // Device focus (see enter, leave)
     dnd_focus: Option<WlSurface>,
     last_dnd_motion: Option<(i32, i32)>,
+    // Currently active data offer. May be present even when no dnd_focus set
     dnd_offer: Option<WlDataOffer>,
 }
 
@@ -134,6 +140,7 @@ impl WLCDataState {
             if let Some(clipboard) = &self.clipboard {
                 let offer_data = WLCDataOfferData {
                     source: clipboard.clone(),
+                    device: device.clone(),
                 };
                 let offer_data = Arc::new(Mutex::new(offer_data));
                 let offer = client.create_resource::<
@@ -153,19 +160,26 @@ impl WLCDataState {
         }
     }
 
-    fn unfocus_devices(&mut self) {
-        self.for_all_devices(|device, data| {
-            match data.dnd_focus.take() {
-                Some(_) => (),
-                None => { return }
-            };
-            data.dnd_offer = None;
-            device.leave();
-        });
+    fn print_dnd_debug(&self, header: &str) {
+        println!("\n{}", header);
+        print!("DND: ");
+        if self.dnd.is_none() {
+            println!("NONE");
+            return;
+        }
+        println!();
+        let dnd = self.dnd.as_ref().unwrap();
+        println!("\tsource: {:?}", dnd.source);
+        println!("\tfocus: {:?}", dnd.focus);
+        println!("\tmime: {:?}", dnd.mime);
+        println!("\tdropped: {:?}", dnd.dropped);
     }
 
     pub fn dnd_motion(&mut self, surface: Option<WlSurface>, x: f64, y: f64) {
+        self.print_dnd_debug("dnd motion");
+
         if self.dnd.is_none() { return }
+        if self.dnd.as_ref().unwrap().dropped { return }
         let source = self.dnd.as_ref().unwrap().source.clone();
         let focus = self.dnd.as_ref().unwrap().focus.clone();
 
@@ -189,7 +203,6 @@ impl WLCDataState {
             if unfocus {
                 device.leave();
                 data.dnd_focus = None;
-                data.dnd_offer = None;
             }
         });
 
@@ -211,6 +224,7 @@ impl WLCDataState {
             // Create offer
             let offer_data = WLCDataOfferData {
                 source: source.clone(),
+                device: device.clone(),
             };
             let offer_data = Arc::new(Mutex::new(offer_data));
             let offer = device_client.create_resource::<
@@ -246,28 +260,46 @@ impl WLCDataState {
     }
 
     pub fn dnd_drop(&mut self) {
-        let dnd = match self.dnd.take() {
+        self.print_dnd_debug("dnd drop");
+        let dnd = match &mut self.dnd {
             Some(d) => d,
             None => { return }
         };
+        if dnd.dropped { return }
+        dnd.dropped = true;
+
+        if dnd.focus.is_none() || dnd.mime.is_none() {
+            self.dnd_cancel();
+            return;
+        }
+
         let action = wl_ddm::DndAction::Copy;
         dnd.source.action(action);
         dnd.source.dnd_drop_performed();
 
         self.for_all_devices(|device, data| {
             if data.dnd_focus.is_none() { return }
+            data.dnd_focus = None;
             data.dnd_offer.as_ref().unwrap().action(action);
             device.drop();
+            device.leave();
         });
     }
 
     pub fn dnd_cancel(&mut self) {
-        let dnd = match self.dnd.take() {
+        self.print_dnd_debug("dnd cancel");
+        let dnd = match &self.dnd {
             Some(d) => d,
             None => { return }
         };
         dnd.source.cancelled();
-        self.unfocus_devices();
+        self.for_all_devices(|device, data| {
+            match data.dnd_focus.take() {
+                Some(_) => (),
+                None => { return }
+            };
+            device.leave();
+        });
     }
 
     fn for_all_devices<F>(&self, mut f: F)
@@ -344,12 +376,17 @@ impl Dispatch<WlDataSource, WLCDataSource> for WLCState {
                 });
             },
             wl_data_source::Request::Destroy => {
+                state.data.print_dnd_debug("data source destroy");
                 let dnd = match &state.data.dnd {
                     Some(d) => d,
                     None => { return }
                 };
                 if *source == dnd.source {
-                    state.data.dnd_cancel();
+                    if !dnd.dropped {
+                        state.data.dnd_cancel();
+                    } else {
+                        state.data.dnd = None;
+                    }
                 }
             },
             wl_data_source::Request::SetActions { .. } => {},
@@ -397,6 +434,8 @@ impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
                     data.usage = SourceUsage::Drag;
                 });
 
+                state.data.print_dnd_debug("drag start");
+
                 // Cancel if drag is already active
                 if state.data.dnd.is_some() {
                     source.cancelled();
@@ -408,6 +447,7 @@ impl Dispatch<WlDataDevice, WLCDataDevice> for WLCState {
                     source: source.clone(),
                     focus: None,
                     mime: None,
+                    dropped: false,
                 });
             },
             wl_data_device::Request::SetSelection { source, serial: _ } => {
@@ -500,7 +540,15 @@ impl Dispatch<WlDataOffer, WLCDataOffer> for WLCState {
                     dnd.mime = mime_type;
                 });
             },
-            wl_data_offer::Request::Destroy => {},
+            wl_data_offer::Request::Destroy => {
+                with_offer_data(offer, |data| {
+                    with_device_data(&data.device, |dev| {
+                        if dev.dnd_offer.as_ref() == Some(offer) {
+                            dev.dnd_offer = None;
+                        }
+                    });
+                });
+            },
             wl_data_offer::Request::Finish => {
                 with_offer_data(offer, |data| {
                     data.source.dnd_finished();
