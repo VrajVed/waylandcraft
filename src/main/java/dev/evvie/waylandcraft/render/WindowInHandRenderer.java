@@ -31,7 +31,7 @@ public class WindowInHandRenderer {
 			poseStack.popPose();
 		}
 		
-		poseStack.translate(h * 0.8f, handHeight * -0.6f - 0.3, -0.85f);
+		poseStack.translate(h * 0.8f, handHeight * -0.6f - 0.275f, -0.85f);
 		
 		float sattack = Mth.sqrt(attack);
 		float osci = Mth.sin(sattack * (float) Math.PI);
