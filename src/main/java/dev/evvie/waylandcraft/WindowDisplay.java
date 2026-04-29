@@ -9,7 +9,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.render.RenderUtils;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Camera;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -87,7 +87,7 @@ public class WindowDisplay {
 		height = window.geometry.height();
 	}
 	
-	public void render(WorldRenderContext ctx) {
+	public void render(LevelRenderContext ctx) {
 		updateGeometry();
 		
 		int xoff = window.framebuffer.getXOff();
@@ -106,10 +106,10 @@ public class WindowDisplay {
 		Vec3 br = bl.add(localX.scale(bufWidth));
 		Vec3 tr = tl.add(localX.scale(bufWidth));
 		
-		PoseStack poseStack = ctx.matrices();
+		PoseStack poseStack = ctx.poseStack();
 		poseStack.pushPose();
-		RenderUtils.cameraTransform(poseStack, ctx.worldState().cameraRenderState);
-		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.commandQueue(), true, tl, bl, br, tr);
+		RenderUtils.cameraTransform(poseStack, ctx.levelState().cameraRenderState);
+		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.submitNodeCollector(), true, tl, bl, br, tr);
 		poseStack.popPose();
 	}
 	

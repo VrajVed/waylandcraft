@@ -3,9 +3,8 @@
 	"package": "dev.evvie.waylandcraft.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"GameRendererMixin",
 		"MouseHandlerMixin",
-		"WindowMixin",
+		"GlBackendMixin",
 		"KeyboardHandlerMixin",
 		"IMouseHandlerMixin",
 		"ItemInHandRendererMixin",
@@ -16,7 +15,7 @@
 		"ItemFrameRendererMixin",
 		"ItemFrameRenderStateMixin",
 		"IGlTextureMixin",
-		"IGuiGraphics"
+		"IGuiGraphicsExtractor"
 	],
 	"injectors": {
 		"defaultRequire": 1

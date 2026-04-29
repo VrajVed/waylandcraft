@@ -94,9 +94,9 @@ public class WindowItemManager {
 				.filter((e) -> e.getAge() > 10)
 				.forEach((e) -> {
 					for(int i = 0; i < 10; i++) {
-						double dx = ((level.random.nextDouble() * 2) - 1) * 0.15;
-						double dy = level.random.nextDouble() * 0.2;
-						double dz = ((level.random.nextDouble() * 2) - 1) * 0.15;
+						double dx = ((level.getRandom().nextDouble() * 2) - 1) * 0.15;
+						double dy = level.getRandom().nextDouble() * 0.2;
+						double dz = ((level.getRandom().nextDouble() * 2) - 1) * 0.15;
 						Minecraft.getInstance().level.addParticle(ParticleTypes.FLAME, e.getX(), e.getY(), e.getZ(), dx, dy, dz);
 					}
 					e.discard();

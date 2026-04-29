@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWNativeEGL;
 
@@ -76,7 +77,9 @@ public class WaylandCraftBridge {
 	
 	public static WaylandCraftBridge start() {
 		long eglDisplay = GLFWNativeEGL.glfwGetEGLDisplay();
-		long eglConfig = GLFWNativeEGL.glfwGetEGLConfig(Minecraft.getInstance().getWindow().handle());
+		PointerBuffer eglConfigBuf = PointerBuffer.allocateDirect(1);
+		GLFWNativeEGL.glfwGetEGLConfig(Minecraft.getInstance().getWindow().handle(), eglConfigBuf);
+		long eglConfig = eglConfigBuf.get();
 		
 		if(eglDisplay == 0 || eglConfig == 0) {
 			throw new RuntimeException("Failed to get EGL display or config!");

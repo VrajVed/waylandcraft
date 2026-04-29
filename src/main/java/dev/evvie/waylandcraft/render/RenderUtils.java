@@ -4,6 +4,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.AddressMode;
@@ -16,14 +18,14 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
 import dev.evvie.waylandcraft.WaylandCraft;
-import dev.evvie.waylandcraft.mixin.IGuiGraphics;
-import net.minecraft.client.gui.GuiGraphics;
+import dev.evvie.waylandcraft.mixin.IGuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeCollector.CustomGeometryRenderer;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 import net.minecraft.world.phys.Vec3;
@@ -34,6 +36,7 @@ public class RenderUtils {
 			.withVertexShader(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/rendertype_window"))
 			.withFragmentShader(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/rendertype_window"))
 			.withSampler("Sampler0")
+			.withDepthStencilState(DepthStencilState.DEFAULT)
 			.withVertexFormat(DefaultVertexFormat.POSITION_TEX, VertexFormat.Mode.QUADS)
 			.buildSnippet();
 	
@@ -44,7 +47,7 @@ public class RenderUtils {
 	
 	private static final RenderPipeline WINDOW_TRANSLUCENT_PIPELINE = RenderPipeline.builder(WINDOW_PIPELINE_SNIPPET)
 			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/window_translucent"))
-			.withBlend(BlendFunction.TRANSLUCENT)
+			.withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
 			.build();
 	
 	private static final RenderPipeline WINDOW_CUTOUT_BACKGROUND_PIPELINE = RenderPipeline.builder(WINDOW_PIPELINE_SNIPPET)
@@ -56,7 +59,7 @@ public class RenderUtils {
 	private static final RenderPipeline WINDOW_TRANSLUCENT_BACKGROUND_PIPELINE = RenderPipeline.builder(WINDOW_PIPELINE_SNIPPET)
 			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/window_translucent_background"))
 			.withShaderDefine("NO_COLOR")
-			.withBlend(BlendFunction.TRANSLUCENT)
+			.withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
 			.build();
 	
 	public static final Supplier<GpuSampler> WINDOW_SAMPLER = () -> RenderSystem.getSamplerCache().getSampler(AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.LINEAR, FilterMode.NEAREST, false);
@@ -102,7 +105,7 @@ public class RenderUtils {
 			.withVertexShader(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/window_blit"))
 			.withFragmentShader(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/window_blit"))
 			.withSampler("Sampler0")
-			.withBlend(BlendFunction.TRANSLUCENT)
+			.withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
 			.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
 			.build();
 	
@@ -140,9 +143,9 @@ public class RenderUtils {
 		
 	}
 	
-	public static void renderFramebuffer2D(GuiGraphics context, WindowFramebuffer framebuffer, int x, int y, int w, int h) {
+	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, int x, int y, int w, int h) {
 		if(!framebuffer.isValid()) return;
-		((IGuiGraphics) context).invokeInnerBlit(WINDOW_BLIT, framebuffer.getTextureLocation(), x, x + w, y, y + h, 0.0f, 1.0f, 0.0f, 1.0f, -1);
+		((IGuiGraphicsExtractor) context).invokeInnerBlit(WINDOW_BLIT, framebuffer.getTextureLocation(), x, x + w, y, y + h, 0.0f, 1.0f, 0.0f, 1.0f, -1);
 	}
 	
 	public static void cameraTransform(PoseStack poseStack, CameraRenderState camera) {

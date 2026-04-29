@@ -24,7 +24,7 @@ import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.Tooltip;
@@ -219,10 +219,10 @@ public class WindowManagerScreen extends Screen {
 	}
 	
 	@Override
-	public void render(GuiGraphics context, int i, int j, float f) {
-		super.renderBlurredBackground(context);
+	public void extractRenderState(GuiGraphicsExtractor context, int i, int j, float f) {
+		super.extractBlurredBackground(context);
 		
-		context.renderOutline(leftMargin - 1, topMargin - 1, areaWidth + 2, areaHeight + 2, Color.white.getRGB());
+		context.outline(leftMargin - 1, topMargin - 1, areaWidth + 2, areaHeight + 2, Color.white.getRGB());
 		
 		guiScale = (int) Minecraft.getInstance().getWindow().getGuiScale();
 		wlc.bridge.setOutputBounds(areaWidth * guiScale, areaHeight * guiScale);
@@ -311,11 +311,11 @@ public class WindowManagerScreen extends Screen {
 			selector.visible = false;
 		}
 		
-		super.render(context, i, j, f);
+		super.extractRenderState(context, i, j, f);
 	}
 	
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int i, int j, float f) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int i, int j, float f) {
 	}
 	
 	private HoveredSurface surfaceUnderPointer(double x, double y) {

@@ -7,7 +7,7 @@ import java.util.List;
 
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.desktop.DesktopEntry;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
@@ -145,12 +145,12 @@ public class AppLauncherScreen extends Screen {
 	}
 	
 	@Override
-	public void render(GuiGraphics context, int mouseX, int mouseY, float partialTicks) {
-		super.render(context, mouseX, mouseY, partialTicks);
-		searchBox.render(context, mouseX, mouseY, partialTicks);
+	public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float partialTicks) {
+		super.extractRenderState(context, mouseX, mouseY, partialTicks);
+		searchBox.extractRenderState(context, mouseX, mouseY, partialTicks);
 		
 		if(searchBox.getY() >= 5 + font.lineHeight + 5) {
-			context.drawString(font, header, width / 2 - font.width(header) / 2, 5, Color.white.getRGB());
+			context.text(font, header, width / 2 - font.width(header) / 2, 5, Color.white.getRGB());
 		}
 	}
 	

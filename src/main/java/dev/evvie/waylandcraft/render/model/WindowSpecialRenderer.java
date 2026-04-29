@@ -20,16 +20,15 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.special.SpecialModelRenderer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
-import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
 public class WindowSpecialRenderer implements SpecialModelRenderer<Identifier> {
 	
 	@Override
-	public void submit(Identifier icon, ItemDisplayContext itemDisplayContext, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int light, int overlayCoords, boolean foil, int outlineColor) {
+	public void submit(Identifier icon, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int light, int overlayCoords, boolean foil, int outlineColor) {
 		poseStack.pushPose();
 		poseStack.translate(0, 0, 0.5);
-		submitNodeCollector.submitCustomGeometry(poseStack, RenderTypes.itemEntityTranslucentCull(icon), new IconRenderer(light, overlayCoords));
+		submitNodeCollector.submitCustomGeometry(poseStack, RenderTypes.itemTranslucent(icon), new IconRenderer(light, overlayCoords));
 		poseStack.popPose();
 	}
 	
@@ -86,17 +85,17 @@ public class WindowSpecialRenderer implements SpecialModelRenderer<Identifier> {
 		
 	}
 	
-	public static record Unbaked() implements SpecialModelRenderer.Unbaked {
+	public static record Unbaked() implements SpecialModelRenderer.Unbaked<Identifier> {
 		
 		public static final MapCodec<Unbaked> MAP_CODEC = MapCodec.unit(new Unbaked());
 		
 		@Override
-		public MapCodec<? extends SpecialModelRenderer.Unbaked> type() {
+		public MapCodec<? extends SpecialModelRenderer.Unbaked<Identifier>> type() {
 			return MAP_CODEC;
 		}
 		
 		@Override
-		public SpecialModelRenderer<?> bake(BakingContext bakingContext) {
+		public SpecialModelRenderer<Identifier> bake(BakingContext bakingContext) {
 			return new WindowSpecialRenderer();
 		}
 		

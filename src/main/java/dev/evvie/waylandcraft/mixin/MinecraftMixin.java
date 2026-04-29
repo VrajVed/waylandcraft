@@ -7,13 +7,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import dev.evvie.waylandcraft.WaylandCraft;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
 	
-	@Inject(method = "runTick", at = @At(value = "INVOKE_STRING", target = "Lnet/minecraft/util/profiling/ProfilerFiller;popPush(Ljava/lang/String;)V", args = "ldc=render"))
+	@Inject(method = "runTick", at = @At(value = "INVOKE_STRING", target = "Lcom/mojang/blaze3d/platform/Window;setErrorSection(Ljava/lang/String;)V", args = "ldc=Render"))
 	public void runTick(boolean doTick, CallbackInfo info) {
 		WaylandCraft.instance.update();
+	}
+	
+	@Inject(method = "pick", at = @At("TAIL"))
+	public void pick(float partialTicks, CallbackInfo info) {
+		HitResult result = Minecraft.getInstance().hitResult;
+		Vec3 pos = Minecraft.getInstance().player.getEyePosition(partialTicks);
+		
+		WaylandCraft.instance.trueGameHitResult = result;
+		if(WaylandCraft.instance.overridePickBlock) {
+			Minecraft.getInstance().hitResult = BlockHitResult.miss(pos, Direction.DOWN, BlockPos.containing(pos));
+			Minecraft.getInstance().crosshairPickEntity = null;
+		}
 	}
 	
 }

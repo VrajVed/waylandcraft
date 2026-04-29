@@ -10,7 +10,7 @@ import com.mojang.blaze3d.pipeline.RenderPipeline;
 import dev.evvie.waylandcraft.CursorShape;
 import dev.evvie.waylandcraft.WaylandCraft;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 
 @Mixin(Gui.class)
@@ -30,8 +30,8 @@ public class GuiMixin {
 	private static final Identifier ZOOM_IN_CROSSHAIR = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/zoom_in");
 	private static final Identifier ZOOM_OUT_CROSSHAIR = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/zoom_out");
 	
-	@Redirect(method = "renderCrosshair", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;blitSprite(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V", ordinal = 0))
-	public void crosshairBlitSprite(GuiGraphics context, RenderPipeline pipeline, Identifier original, int x, int y, int width, int height) {
+	@Redirect(method = "extractCrosshair", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIII)V", ordinal = 0))
+	public void crosshairBlitSprite(GuiGraphicsExtractor context, RenderPipeline pipeline, Identifier original, int x, int y, int width, int height) {
 		CursorShape cursor = WaylandCraft.instance.cursorShape;
 		Identifier crosshair = crosshairForCursor(cursor);
 		if(crosshair == null) crosshair = original;
