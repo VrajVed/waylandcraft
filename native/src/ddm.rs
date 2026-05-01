@@ -160,6 +160,7 @@ impl WLCDataState {
     }
 
     fn print_dnd_debug(&self, header: &str) {
+        /*
         println!("\n{}", header);
         print!("DND: ");
         if self.dnd.is_none() {
@@ -173,6 +174,8 @@ impl WLCDataState {
         println!("\tmime: {:?}", dnd.mime);
         println!("\taction: {:?}", dnd.action);
         println!("\tdropped: {:?}", dnd.dropped);
+        */
+        let _ = header;
     }
 
     pub fn check_dnd_request(&mut self) -> Option<u32> {
