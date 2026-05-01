@@ -275,6 +275,8 @@ public class WindowManagerScreen extends Screen {
 			
 			for(WindowElement element : windows) {
 				WindowFramebuffer buf = element.window.framebuffer;
+				if(buf == null) continue;
+				
 				int x = (int) element.x - buf.getXOff();
 				int y = (int) element.y - buf.getYOff();
 				int w = buf.getWidth();

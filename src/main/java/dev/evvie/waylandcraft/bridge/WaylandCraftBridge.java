@@ -33,6 +33,7 @@ public class WaylandCraftBridge {
 	private ArrayList<WLCPopup> popups = new ArrayList<WLCPopup>();
 	private ArrayList<WLCSurface> surfaces = new ArrayList<WLCSurface>();
 	private ArrayList<DmabufTexture> dmabufs = new ArrayList<DmabufTexture>();
+	private ArrayList<WindowFramebuffer> framebuffers = new ArrayList<WindowFramebuffer>();
 	
 	public IconSurface dndIcon = null;
 	
@@ -295,18 +296,16 @@ public class WaylandCraftBridge {
 		}
 		
 		long dndIconHandle = dndIcon(instance);
-		if(dndIconHandle == 0) {
-			if(dndIcon != null && dndIcon.framebuffer != null) dndIcon.framebuffer.free();
-			dndIcon = null;
-		}
-		else {
-			dndIcon = new IconSurface(getOrCreateSurface(dndIconHandle));
-		}
-		
-		if(dndIcon != null) {
+		if(dndIconHandle != 0) {
+			WLCSurface dndIconSurface = getOrCreateSurface(dndIconHandle);
+			if(dndIcon != null && dndIcon.surface != dndIconSurface) dndIcon = null;
+			if(dndIcon == null) dndIcon = new IconSurface(dndIconSurface);
+			
 			updateSurfaceData(instance, dndIcon.surface);
 			dndIcon.surface.visited = true;
-			dndIcon.render();
+		}
+		else {
+			dndIcon = null;
 		}
 		
 		// All surface trees have now been walked. Now delete all unvisited surfaces
@@ -343,13 +342,7 @@ public class WaylandCraftBridge {
 		}
 		
 		profiler.push("framebuffer");
-		
-		// Render windows
-		for(WLCAbstractWindow window : allWindows) {
-			if(window.framebuffer != null) window.framebuffer.free();
-			window.framebuffer = WindowFramebuffer.renderSurfaceTree(window.getSurfaceTree());
-		}
-		
+		updateFramebuffers();
 		profiler.pop();
 		
 		deleteNonExistingDmabufs(dmabufs(instance));
@@ -362,6 +355,40 @@ public class WaylandCraftBridge {
 		}
 		
 		profiler.pop();
+	}
+	
+	private void updateFramebuffers() {
+		List<WLCAbstractWindow> allWindows = Stream.of(toplevels, popups).flatMap((l) -> l.stream()).collect(Collectors.toList());
+		
+		// Render windows
+		for(WLCAbstractWindow window : allWindows) {
+			if(window.framebuffer == null) {
+				window.framebuffer = new WindowFramebuffer(window.getSurfaceTree());
+				framebuffers.add(window.framebuffer);
+			}
+			window.framebuffer.render();
+		}
+		
+		// Render dnd icon
+		if(dndIcon != null) {
+			if(dndIcon.framebuffer == null) {
+				dndIcon.framebuffer = new WindowFramebuffer(dndIcon.surface);
+				framebuffers.add(dndIcon.framebuffer);
+			}
+			dndIcon.framebuffer.render();
+		}
+		
+		// Cleanup unused framebuffers
+		ArrayList<WindowFramebuffer> usedFramebuffers = new ArrayList<WindowFramebuffer>();
+		for(WindowFramebuffer framebuffer : framebuffers) {
+			if(framebuffer.surfaceTree.isAlive()) {
+				usedFramebuffers.add(framebuffer);
+			}
+			else {
+				framebuffer.destroy();
+			}
+		}
+		framebuffers.retainAll(usedFramebuffers);
 	}
 	
 	private void updateGeometry(WLCAbstractWindow window) {

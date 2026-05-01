@@ -60,23 +60,11 @@ public class WindowFramebuffer {
 	private int xoff;
 	private int yoff;
 	
-	private WindowFramebuffer(WLCSurface surfaceTree) {
+	public WindowFramebuffer(WLCSurface surfaceTree) {
 		this.surfaceTree = surfaceTree;
 	}
 	
-	public static WindowFramebuffer renderSurfaceTree(WLCSurface surfaceTree) {
-		WindowFramebuffer buf = new WindowFramebuffer(surfaceTree);
-		buf.init();
-		return buf;
-	}
-	
-	private void init() {
-		updateDimensions();
-		render();
-		registerTexture();
-	}
-	
-	private void updateDimensions() {
+	private void updateTarget() {
 		int minX = 0;
 		int minY = 0;
 		int maxX = 0;
@@ -94,20 +82,36 @@ public class WindowFramebuffer {
 			if(sMaxY > maxY) maxY = sMaxY;
 		}
 		
+		int prevWidth = width;
+		int prevHeight = height;
+		
 		this.xoff = -minX;
 		this.yoff = -minY;
 		this.width = maxX - minX;
 		this.height = maxY - minY;
+		
+		if(width <= 0 || height <= 0) {
+			destroy();
+			return;
+		}
+		
+		if(target == null) {
+			target = new TextureTarget(name(), width, height, false);
+		}
+		else if(width != prevWidth || height != prevHeight) {
+			target.resize(width, height);
+		}
+		
+		if(texture == null) registerTexture();
 	}
 	
 	private String name() {
 		return "wayland-framebuffer-" + this.hashCode() + "-" + surfaceTree.hashCode();
 	}
 	
-	private void render() {
-		if(width == 0 || height == 0) return;
-		
-		target = new TextureTarget(name(), width, height, false);
+	public void render() {
+		updateTarget();
+		if(target == null) return;
 		
 		PoseStack poseStack = new PoseStack();
 		poseStack.translate(-1.0, -1.0, 0.0);
@@ -206,11 +210,14 @@ public class WindowFramebuffer {
 	private void unregisterTexture() {
 		TextureManager manager = Minecraft.getInstance().getTextureManager();
 		manager.register(location, manager.getTexture(MissingTextureAtlasSprite.getLocation()));
+		texture = null;
+		location = null;
 	}
 	
-	public void free() {
+	public void destroy() {
 		if(target != null) target.destroyBuffers();
 		if(texture != null) unregisterTexture();
+		target = null;
 	}
 	
 	public int getWidth() {

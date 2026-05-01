@@ -38,7 +38,7 @@ public class WindowDisplay {
 	}
 	
 	public boolean isValid() {
-		return window.isAlive() && window.framebuffer.isValid();
+		return window.isAlive() && window.framebuffer != null && window.framebuffer.isValid();
 	}
 	
 	public void rotate(Vec3 normal, Vec3 down) {
@@ -88,6 +88,7 @@ public class WindowDisplay {
 	}
 	
 	public void render(LevelRenderContext ctx) {
+		if(window.framebuffer == null) return;
 		updateGeometry();
 		
 		int xoff = window.framebuffer.getXOff();
