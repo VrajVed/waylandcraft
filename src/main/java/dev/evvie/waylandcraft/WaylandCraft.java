@@ -493,14 +493,23 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		if(pointerGrabs.isExclusiveGrabActive()) return true;
 		
-		if(action == 1 && hoveredDisplay != null && !pointerGrabs.isGrabActive(button)) {
-			if(hoveredDisplay.dist >= 0) {
+		// Handle implicit pointer grab button presses
+		if(action == 1) {
+			// Start new implicit grab when conditions are met
+			if(!pointerGrabs.isImplicitActive() && hoveredDisplay != null && hoveredDisplay.dist >= 0) {
+				pointerGrabs.startImplicit(hoveredDisplay);
 				WLCAbstractWindow window = hoveredDisplay.target.window;
-				pointerGrabs.startImplicit(hoveredDisplay, button);
-				
 				if(window instanceof WLCToplevel) bridge.focusSurface((WLCToplevel) window);
 			}
-			return true;
+			
+			// If an implicit pointer grab is now active, capture the button press
+			if(pointerGrabs.isImplicitActive()) {
+				pointerGrabs.sendImplicitButton(button);
+				return true;
+			}
+			
+			// If clicking on a window at all, the button press should be captured, even if it wasn't passed on to the application
+			if(hoveredDisplay != null) return true;
 		}
 		
 		return false;
