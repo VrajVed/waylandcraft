@@ -542,12 +542,6 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(pointerCapture == null) return false;
 		
 		bridge.sendRelativeMotion(dx, dy);
-		
-		// Workaround for xwayland-satellite issues, usually shouldn't be done
-		// as it is technically against protocol and so might cause issues but
-		// otherwise relative motion seems to not work.
-//		bridge.sendMotion(pointerCapture.x += dx, pointerCapture.y += dy);
-		
 		return true;
 	}
 	
