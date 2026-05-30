@@ -1,18 +1,15 @@
 #![allow(non_snake_case)]
 
 use crate::egl::{EGLDisplay, EGLHelper};
-use crate::svg::render_svg;
+use crate::java_types::*;
 use crate::utils::get_time;
 use crate::xdg_spec::RawDesktopEntry;
 use crate::{WaylandCraft, wlc_init};
+use jni::objects::{JIntArray, JLongArray, JObjectArray, JPrimitiveArray};
 use jni::{
-    JNIEnv,
-    objects::{JClass, JObject, JString, JValue},
-    signature::{Primitive, ReturnType},
-    sys::{
-        JNI_TRUE, jarray, jboolean, jbyte, jdouble, jint, jlong, jobject,
-        jsize, jstring, jvalue,
-    },
+    Env, bind_java_type,
+    objects::{JClass, JString},
+    sys::{jboolean, jbyte, jdouble, jint, jlong},
 };
 use smithay::{
     backend::allocator::{Buffer, dmabuf::Dmabuf},
@@ -47,6 +44,7 @@ use smithay::{
 };
 use std::ops::DerefMut;
 use std::path::PathBuf;
+use thiserror::Error;
 
 #[allow(clippy::vec_box)]
 pub(crate) struct BridgeState {
@@ -68,77 +66,439 @@ impl BridgeState {
     }
 }
 
-fn jptr_to_instance(ptr: jlong) -> &'static mut WaylandCraft<'static> {
-    let ptr: *mut WaylandCraft = (ptr as usize) as *mut WaylandCraft;
-    unsafe { &mut *ptr }
+fn jptr_to_ref<T>(ptr: jlong) -> Option<&'static T> {
+    let ptr = (ptr as usize) as *const T;
+    if ptr.is_null() {
+        None
+    } else {
+        Some(unsafe { &*ptr })
+    }
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    init")]
-pub extern "system" fn init<'l>(
-    mut env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    proc_addr: jlong,
-    dpy_ptr: jlong,
-) -> jlong {
-    let dpy: EGLDisplay = (dpy_ptr as usize) as EGLDisplay;
-    let egl = EGLHelper::new(dpy, proc_addr as usize);
+fn jptr_to_mut<T>(ptr: jlong) -> Option<&'static mut T> {
+    let ptr = (ptr as usize) as *mut T;
+    if ptr.is_null() {
+        None
+    } else {
+        Some(unsafe { &mut *ptr })
+    }
+}
 
-    let instance = match wlc_init(egl) {
-        Ok(i) => i,
-        Err(err) => {
-            let _ =
-                env.throw_new("java/lang/RuntimeException", err.to_string());
-            return 0;
+bind_java_type! {
+    rust_type = WaylandCraftBridge,
+    java_type = dev.evvie.waylandcraft.bridge.WaylandCraftBridge,
+
+    type_map {
+        WLCSurface => dev.evvie.waylandcraft.bridge.WLCSurface,
+        JRawDesktopEntry => dev.evvie.waylandcraft.desktop.RawDesktopEntry,
+    },
+
+    methods {
+        fn get_or_create_surface(jlong) -> WLCSurface,
+    },
+
+    native_methods {
+        static extern fn init {
+            sig = (glfw_get_proc_address: jlong, egl_display: jlong) -> jlong,
+            fn = init,
+        },
+        static extern fn update {
+            sig = (instance: jlong),
+            fn = update,
+        },
+        static extern fn socket {
+            sig = (instance: jlong) -> JString,
+            fn = socket,
+        },
+        static extern fn send_frame {
+            sig = (surface_handle: jlong),
+            fn = send_frame,
+        },
+        static extern fn update_surface_data {
+            sig = (instance: jlong, surface: WLCSurface),
+            fn = update_surface_data,
+        },
+        static extern fn toplevels {
+            sig = (instance: jlong) -> jlong[],
+            fn = toplevels,
+        },
+        static extern fn toplevel_surface {
+            sig = (instance: jlong, toplevel_handle: jlong) -> jlong,
+            fn = toplevel_surface,
+        },
+        static extern fn toplevel_title {
+            sig = (toplevel_handle: jlong) -> JString,
+            fn = toplevel_title,
+        },
+        static extern fn toplevel_app_id {
+            sig = (toplevel_handle: jlong) -> JString,
+            name = "toplevelAppID",
+            fn = toplevel_app_id,
+        },
+        static extern fn toplevel_resize {
+            sig = (
+                toplevel_handle: jlong,
+                width: jint,
+                height: jint,
+                interactive: jboolean
+            ),
+            fn = toplevel_resize,
+        },
+        static extern fn toplevel_resize_ovr {
+            sig = (toplevel_handle: jlong, width: jint, height: jint),
+            fn = toplevel_resize_ovr,
+        },
+        static extern fn minimize_req {
+            sig = (instance: jlong) -> jlong[],
+            fn = minimize_req,
+        },
+        static extern fn maximize_req {
+            sig = (instance: jlong) -> jlong[],
+            fn = maximize_req,
+        },
+        static extern fn unmaximize_req {
+            sig = (instance: jlong) -> jlong[],
+            fn = unmaximize_req,
+        },
+        static extern fn fullscreen_req {
+            sig = (instance: jlong) -> jlong[],
+            fn = fullscreen_req,
+        },
+        static extern fn unfullscreen_req {
+            sig = (instance: jlong) -> jlong[],
+            fn = unfullscreen_req,
+        },
+        static extern fn move_request {
+            sig = (instance: jlong) -> jint[],
+            fn = move_request,
+        },
+        static extern fn resize_request {
+            sig = (instance: jlong) -> jint[],
+            fn = resize_request,
+        },
+        static extern fn fullscreened {
+            sig = (instance: jlong) -> jlong[],
+            fn = fullscreened,
+        },
+        static extern fn toplevel_maximize {
+            sig = (instance: jlong, toplevel_handle: jlong),
+            fn = toplevel_maximize,
+        },
+        static extern fn toplevel_fullscreen {
+            sig = (instance: jlong, toplevel_handle: jlong),
+            fn = toplevel_fullscreen,
+        },
+        static extern fn popups {
+            sig = (instance: jlong) -> jlong[],
+            fn = popups,
+        },
+        static extern fn popup_surface {
+            sig = (instance: jlong, popup_handle: jlong) -> jlong,
+            fn = popup_surface,
+        },
+        static extern fn popup_parent {
+            sig = (instance: jlong, popup_handle: jlong) -> jlong,
+            fn = popup_parent,
+        },
+        static extern fn popup_offset {
+            sig = (popup_handle: jlong) -> jint[],
+            fn = popup_offset,
+        },
+        static extern fn surface_xdg_geometry {
+            sig = (surface_handle: jlong) -> jint[],
+            name = "surfaceXDGGeometry",
+            fn = surface_xdg_geometry,
+        },
+        static extern fn delete_dmabuf {
+            sig = (instance: jlong, dmabuf_handle: jlong),
+            fn = delete_dmabuf
+        },
+        extern fn update_surface_tree {
+            sig = (instance: jlong, surface: WLCSurface) -> WLCSurface,
+            fn = update_surface_tree,
+        },
+        static extern fn check_input_region {
+            sig = (surface_handle: jlong, x: jdouble, y: jdouble) -> jboolean,
+            fn = check_input_region,
+        },
+        static extern fn pointer_motion {
+            sig = (instance: jlong, x: jdouble, y: jdouble),
+            fn = pointer_motion,
+        },
+        static extern fn pointer_motion_focus {
+            sig = (
+                instance: jlong,
+                surface_handle: jlong,
+                x: jdouble,
+                y: jdouble
+            ),
+            fn = pointer_motion_focus,
+        },
+        static extern fn pointer_rel_motion {
+            sig = (instance: jlong, dx: jdouble, dy: jdouble),
+            fn = pointer_rel_motion,
+        },
+        static extern fn maybe_pointer_lock {
+            sig = (instance: jlong, surface_handle: jlong) -> jboolean,
+            fn = maybe_pointer_lock,
+        },
+        static extern fn pointer_unlock {
+            sig = (instance: jlong),
+            fn = pointer_unlock,
+        },
+        static extern fn pointer_leave {
+            sig = (instance: jlong),
+            fn = pointer_leave,
+        },
+        static extern fn pointer_button {
+            sig = (instance: jlong, button: jint, state: jint) -> jint,
+            fn = pointer_button,
+        },
+        static extern fn pointer_axis {
+            sig = (instance: jlong, axis: jint, value: jdouble),
+            fn = pointer_axis,
+        },
+        static extern fn cursor_shape {
+            sig = (instance: jlong) -> jint,
+            fn = cursor_shape,
+        },
+        static extern fn keyboard_focus {
+            sig = (instance: jlong, surface_handle: jlong),
+            fn = keyboard_focus,
+        },
+        static extern fn keyboard_activate {
+            sig = (instance: jlong),
+            fn = keyboard_activate,
+        },
+        static extern fn keyboard_deactivate {
+            sig = (instance: jlong),
+            fn = keyboard_deactivate,
+        },
+        static extern fn keyboard_input {
+            sig = (instance: jlong, scancode: jint, action: jint),
+            fn = keyboard_input,
+        },
+        static extern fn keyboard_update {
+            sig = (instance: jlong, scancode: jint, pressed: jboolean),
+            fn = keyboard_update,
+        },
+        static extern fn output_size {
+            sig = (instance: jlong) -> jint[],
+            fn = output_size,
+        },
+        static extern fn output_bounds {
+            sig = (instance: jlong) -> jint[],
+            fn = output_bounds,
+        },
+        static extern fn output_resize {
+            sig = (instance: jlong, width: jint, height: jint),
+            fn = output_resize,
+        },
+        static extern fn output_set_bounds {
+            sig = (instance: jlong, width: jint, height: jint),
+            fn = output_set_bounds,
+        },
+        static extern fn free_surface {
+            sig = (instance: jlong, surface_handle: jlong),
+            fn = free_surface,
+        },
+        static extern fn free_toplevel {
+            sig = (instance: jlong, toplevel_handle: jlong),
+            fn = free_toplevel,
+        },
+        static extern fn free_popup {
+            sig = (instance: jlong, popup_handle: jlong),
+            fn = free_popup,
+        },
+        static extern fn load_desktop_entry {
+            sig = (instance: jlong, path: JString) -> JRawDesktopEntry,
+            fn = load_desktop_entry,
+        },
+        static extern fn load_desktop_entries {
+            sig = (instance: jlong) -> JRawDesktopEntry[],
+            fn = load_desktop_entries,
+        },
+        static extern fn render_svg {
+            sig = (
+                path: JString,
+                width: jint,
+                height: jint,
+                buffer_ptr: jlong
+            ) -> jboolean,
+            name = "renderSVG",
+            fn = render_svg,
+        },
+        static extern fn exec_app {
+            sig = (instance: jlong, app_id: JString) -> jboolean,
+            fn = exec_app,
+        },
+        static extern fn set_keymap_default {
+            sig = (instance: jlong),
+            fn = set_keymap_default,
+        },
+        static extern fn export_keymap {
+            sig = (instance: jlong) -> JString,
+            fn = export_keymap,
+        },
+        static extern fn set_keymap_from_str {
+            sig = (instance: jlong, keymap: JString) -> jboolean,
+            fn = set_keymap_from_str,
+        },
+        static extern fn check_dnd_request {
+            sig = (instance: jlong) -> jint[],
+            fn = check_dnd_request,
+        },
+        static extern fn check_dnd_active {
+            sig = (instance: jlong) -> jboolean,
+            fn = check_dnd_active,
+        },
+        static extern fn dnd_cancel {
+            sig = (instance: jlong),
+            fn = dnd_cancel,
+        },
+        static extern fn dnd_drop {
+            sig = (instance: jlong),
+            fn = dnd_drop,
+        },
+        static extern fn dnd_motion {
+            sig = (
+                instance: jlong,
+                surface_handle: jlong,
+                x: jdouble,
+                y: jdouble
+            ),
+            fn = dnd_motion,
+        },
+        static extern fn dnd_icon {
+            sig = (instance: jlong) -> jlong,
+            fn = dnd_icon,
+        },
+    },
+}
+
+#[derive(Debug, Error)]
+enum BridgeError {
+    #[error(transparent)]
+    JniError(#[from] jni::errors::Error),
+    #[error(transparent)]
+    Init(Box<dyn std::error::Error>),
+    #[error("{0}")]
+    Null(&'static str),
+    #[error("Null WLC instance handle given. Function: {0}")]
+    NullInstancePtr(&'static str),
+    #[error("Null wayland surface handle given. Function: {0}")]
+    NullSurfacePtr(&'static str),
+    #[error("Null toplevel surface handle given. Function: {0}")]
+    NullToplevelPtr(&'static str),
+    #[error("Null popup surface handle given. Function: {0}")]
+    NullPopupPtr(&'static str),
+    #[error("Error converting OS string, was not UTF8")]
+    OsStringToUtf8,
+    #[error("Unknown pointer button {0} received")]
+    UnknownPointerButton(jint),
+    #[error("Unknown scroll direction {0} received")]
+    UnknownScrollDirection(jint),
+    #[error("Unknown keyboard state {0} received")]
+    UnknownKeyboardState(jint),
+    #[error("Width cannot be below 1")]
+    NonPositiveWidth,
+    #[error("Height cannot be below 1")]
+    NonPositiveHeight,
+}
+
+macro_rules! jptr_to_instance {
+    ($jptr:expr, $location:literal) => {
+        match jptr_to_mut::<WaylandCraft>($jptr) {
+            None => Err(BridgeError::NullInstancePtr($location)),
+            Some(wlc) => Ok(wlc),
         }
     };
-
-    let instance_box: Box<WaylandCraft> = Box::new(instance);
-    let ptr: *mut WaylandCraft = Box::into_raw(instance_box);
-    let addr: u64 = ptr.addr() as u64;
-    addr as i64
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    update")]
-pub extern "system" fn update<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    instance.update();
+macro_rules! jptr_to_wl_surface {
+    ($jptr:expr, $location:literal) => {
+        match jptr_to_mut::<WlSurface>($jptr) {
+            None => Err(BridgeError::NullSurfacePtr($location)),
+            Some(wl_surface) => Ok(wl_surface),
+        }
+    };
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    socket")]
-pub extern "system" fn socket<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jstring {
-    let instance = jptr_to_instance(ptr);
-    let socket = instance.state.socket.to_str().unwrap();
-    env.new_string(socket).unwrap().into_raw()
+macro_rules! jptr_to_toplevel {
+    ($jptr:expr, $location:literal) => {
+        match jptr_to_mut::<ToplevelSurface>($jptr) {
+            None => Err(BridgeError::NullToplevelPtr($location)),
+            Some(toplevel) => Ok(toplevel),
+        }
+    };
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    sendFrame")]
-pub extern "system" fn sendFrame<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) {
-    let surface =
-        jptr_to_wlsurface(handle).expect("sendFrame wlsurface exists");
+macro_rules! jptr_to_popup {
+    ($jptr:expr, $location:literal) => {
+        match jptr_to_mut::<PopupSurface>($jptr) {
+            None => Err(BridgeError::NullPopupPtr($location)),
+            Some(popup) => Ok(popup),
+        }
+    };
+}
 
-    with_surface_data(&surface, |data| {
+fn init<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    glfw_get_proc_address: jlong,
+    egl_display: jlong,
+) -> Result<jlong, BridgeError> {
+    let dpy: EGLDisplay = (egl_display as usize) as EGLDisplay;
+    let egl = EGLHelper::new(dpy, glfw_get_proc_address as usize);
+
+    let instance = wlc_init(egl).map_err(BridgeError::Init)?;
+    let instance_box = Box::new(instance);
+    let ptr = Box::into_raw(instance_box);
+
+    Ok(ptr.addr() as jlong)
+}
+
+fn update<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    jptr_to_instance!(instance, "update")?.update();
+
+    Ok(())
+}
+
+fn socket<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JString<'local>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "socket")?;
+    let socket = instance
+        .state
+        .socket
+        .to_str()
+        .ok_or(BridgeError::OsStringToUtf8)?;
+
+    Ok(JString::new(env, socket)?)
+}
+
+fn send_frame<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    surface_handle: jlong,
+) -> Result<(), BridgeError> {
+    let surface = jptr_to_wl_surface!(surface_handle, "sendFrame")?;
+
+    with_surface_data(surface, |data| {
         let mut attr_guard = data.cached_state.get::<SurfaceAttributes>();
         let attr = attr_guard.deref_mut().current();
         for c in attr.frame_callbacks.drain(..) {
             c.done(get_time());
         }
     });
+
+    Ok(())
 }
 
 // Get or insert an element and return its handle
@@ -196,14 +556,12 @@ where
     vec.retain(|e| **e != *elem);
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevels")]
-pub extern "system" fn toplevels<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+fn toplevels<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "toplevels")?;
 
     insert_all(
         &mut instance.bridge.toplevels,
@@ -213,19 +571,17 @@ pub extern "system" fn toplevels<'l>(
     instance.bridge.toplevels.retain(|t| t.alive());
 
     let toplevels = get_all_handles(&mut instance.bridge.toplevels);
-    let array = env.new_long_array(toplevels.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &toplevels).unwrap();
-    array.into_raw()
+    let array = JLongArray::new(env, toplevels.len())?;
+    array.set_region(env, 0, &toplevels)?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    popups")]
-pub extern "system" fn popups<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+fn popups<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "popups")?;
 
     insert_all(
         &mut instance.bridge.popups,
@@ -233,197 +589,131 @@ pub extern "system" fn popups<'l>(
     );
 
     instance.bridge.popups.retain(|t| t.alive());
-
     let popups = get_all_handles(&mut instance.bridge.popups);
-    let array = env.new_long_array(popups.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &popups).unwrap();
-    array.into_raw()
+
+    let array = JLongArray::new(env, popups.len())?;
+    array.set_region(env, 0, &popups)?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    minimizeReq")]
-pub extern "system" fn minimizeReq<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+enum RequestsVec {
+    Minimize,
+    Maximize,
+    Unmaximize,
+    Fullscreen,
+    Unfullscreen,
+}
 
-    let handles: Vec<jlong> = instance
-        .state
-        .requests
-        .minimize
+fn clear_requests<'local>(
+    env: &mut Env<'local>,
+    instance: &mut WaylandCraft,
+    vec: RequestsVec,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let vec = match vec {
+        RequestsVec::Minimize => &mut instance.state.requests.minimize,
+        RequestsVec::Maximize => &mut instance.state.requests.maximize,
+        RequestsVec::Unmaximize => &mut instance.state.requests.unmaximize,
+        RequestsVec::Fullscreen => &mut instance.state.requests.fullscreen,
+        RequestsVec::Unfullscreen => &mut instance.state.requests.unfullscreen,
+    };
+
+    let handles: Vec<jlong> = vec
         .iter()
         .filter(|t| t.alive())
         .map(|t| insert_get_handle(&mut instance.bridge.toplevels, t))
         .collect();
 
-    instance.state.requests.minimize.clear();
+    vec.clear();
 
-    let array = env.new_long_array(handles.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &handles).unwrap();
-    array.into_raw()
+    let array = JLongArray::new(env, handles.len())?;
+    array.set_region(env, 0, &handles)?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    maximizeReq")]
-pub extern "system" fn maximizeReq<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
-
-    let handles: Vec<jlong> = instance
-        .state
-        .requests
-        .maximize
-        .iter()
-        .filter(|t| t.alive())
-        .map(|t| insert_get_handle(&mut instance.bridge.toplevels, t))
-        .collect();
-
-    instance.state.requests.maximize.clear();
-
-    let array = env.new_long_array(handles.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &handles).unwrap();
-    array.into_raw()
+fn minimize_req<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "minimizeReq")?;
+    clear_requests(env, instance, RequestsVec::Minimize)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    unmaximizeReq")]
-pub extern "system" fn unmaximizeReq<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
-
-    let handles: Vec<jlong> = instance
-        .state
-        .requests
-        .unmaximize
-        .iter()
-        .filter(|t| t.alive())
-        .map(|t| insert_get_handle(&mut instance.bridge.toplevels, t))
-        .collect();
-
-    instance.state.requests.unmaximize.clear();
-
-    let array = env.new_long_array(handles.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &handles).unwrap();
-    array.into_raw()
+fn maximize_req<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "maximizeReq")?;
+    clear_requests(env, instance, RequestsVec::Maximize)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    fullscreenReq")]
-pub extern "system" fn fullscreenReq<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
-
-    let handles: Vec<jlong> = instance
-        .state
-        .requests
-        .fullscreen
-        .iter()
-        .filter(|t| t.alive())
-        .map(|t| insert_get_handle(&mut instance.bridge.toplevels, t))
-        .collect();
-
-    instance.state.requests.fullscreen.clear();
-
-    let array = env.new_long_array(handles.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &handles).unwrap();
-    array.into_raw()
+fn unmaximize_req<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "unmaximizeReq")?;
+    clear_requests(env, instance, RequestsVec::Unmaximize)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    unfullscreenReq")]
-pub extern "system" fn unfullscreenReq<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
-
-    let handles: Vec<jlong> = instance
-        .state
-        .requests
-        .unfullscreen
-        .iter()
-        .filter(|t| t.alive())
-        .map(|t| insert_get_handle(&mut instance.bridge.toplevels, t))
-        .collect();
-
-    instance.state.requests.unfullscreen.clear();
-
-    let array = env.new_long_array(handles.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &handles).unwrap();
-    array.into_raw()
+fn fullscreen_req<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "fullscreenReq")?;
+    clear_requests(env, instance, RequestsVec::Fullscreen)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    moveRequest")]
-pub extern "system" fn moveRequest<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+fn unfullscreen_req<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "unfullscreenReq")?;
+    clear_requests(env, instance, RequestsVec::Unfullscreen)
+}
+
+fn move_request<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "moveRequest")?;
     let serial = instance.state.requests.move_interactive.pop();
 
     let serial = match serial {
         Some(s) => s,
-        None => return std::ptr::null_mut(),
+        None => return Ok(JPrimitiveArray::null()),
     };
 
-    let serial = Into::<u32>::into(serial) as jint;
-    let array = env.new_int_array(1).unwrap();
-    env.set_int_array_region(&array, 0, &[serial]).unwrap();
-    array.into_raw()
+    let serial = u32::from(serial) as jint;
+
+    let array = JIntArray::new(env, 1)?;
+    array.set_region(env, 0, &[serial])?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    resizeRequest")]
-pub extern "system" fn resizeRequest<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+fn resize_request<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "resizeRequest")?;
     let req = instance.state.requests.resize_interactive.pop();
 
     let (serial, edges) = match req {
         Some(r) => r,
-        None => return std::ptr::null_mut(),
+        None => return Ok(JPrimitiveArray::null()),
     };
 
-    let serial = Into::<u32>::into(serial) as jint;
-    let edges = Into::<u32>::into(edges) as jint;
+    let serial = u32::from(serial) as jint;
+    let edges = u32::from(edges) as jint;
 
-    let array = env.new_int_array(2).unwrap();
-    env.set_int_array_region(&array, 0, &[serial, edges])
-        .unwrap();
-    array.into_raw()
-}
-
-#[allow(non_upper_case_globals)]
-const WLCSurface_class: &str = "dev/evvie/waylandcraft/bridge/WLCSurface";
-
-#[allow(non_upper_case_globals)]
-const WaylandCraftBridge_class: &str =
-    "dev/evvie/waylandcraft/bridge/WaylandCraftBridge";
-
-fn jptr_to_wlsurface(ptr: jlong) -> Option<WlSurface> {
-    if ptr == 0 {
-        return None;
-    }
-    let ptr: *mut WlSurface = (ptr as usize) as *mut WlSurface;
-    let r = unsafe { &mut *ptr };
-    Some(r.clone())
+    let array = JIntArray::new(env, 2)?;
+    array.set_region(env, 0, &[serial, edges])?;
+    Ok(array)
 }
 
 enum BufferAttachResult {
@@ -434,8 +724,8 @@ enum BufferAttachResult {
 
 fn try_attach_shm(
     _instance: &mut WaylandCraft,
-    env: &mut JNIEnv,
-    obj: &JObject,
+    env: &mut Env,
+    jsurface: &WLCSurface,
     buf: &WlBuffer,
     surf_data: &SurfaceData,
 ) -> BufferAttachResult {
@@ -446,23 +736,12 @@ fn try_attach_shm(
         let stride = metadata.stride as jint;
         ensure_viewport_valid(surf_data, Size::new(width, height));
 
-        unsafe {
-            let ptr = ptr.offset(metadata.offset as isize);
-            let jptr = (ptr as usize) as jlong;
-            env.call_method_unchecked(
-                obj,
-                (WLCSurface_class, "attachShmBuffer", "(JIIII)V"),
-                ReturnType::Primitive(Primitive::Void),
-                &[
-                    jvalue { j: jptr },
-                    jvalue { i: width },
-                    jvalue { i: height },
-                    jvalue { i: format },
-                    jvalue { i: stride },
-                ],
-            )
+        let ptr =
+            unsafe { ptr.offset(metadata.offset as isize) }.addr() as jlong;
+
+        jsurface
+            .attach_shm_buffer(env, ptr, width, height, format, stride)
             .unwrap();
-        }
     });
 
     match r {
@@ -476,8 +755,8 @@ fn try_attach_shm(
 
 fn try_attach_single_pixel(
     _instance: &mut WaylandCraft,
-    env: &mut JNIEnv,
-    obj: &JObject,
+    env: &mut Env,
+    jsurface: &WLCSurface,
     buf: &WlBuffer,
     surf_data: &SurfaceData,
 ) -> BufferAttachResult {
@@ -491,29 +770,19 @@ fn try_attach_single_pixel(
     ensure_viewport_valid(surf_data, Size::new(1, 1));
 
     let [r, g, b, a] = pix.rgba8888();
-
-    unsafe {
-        env.call_method_unchecked(
-            obj,
-            (WLCSurface_class, "attachSinglePixelBuffer", "(BBBB)V"),
-            ReturnType::Primitive(Primitive::Void),
-            &[
-                jvalue { b: r as jbyte },
-                jvalue { b: g as jbyte },
-                jvalue { b: b as jbyte },
-                jvalue { b: a as jbyte },
-            ],
+    jsurface
+        .attach_single_pixel_buffer(
+            env, r as jbyte, g as jbyte, b as jbyte, a as jbyte,
         )
         .unwrap();
-    }
 
     BufferAttachResult::Success
 }
 
 fn try_attach_dmabuf(
     instance: &mut WaylandCraft,
-    env: &mut JNIEnv,
-    obj: &JObject,
+    env: &mut Env,
+    jsurface: &WLCSurface,
     buf: &WlBuffer,
     surf_data: &SurfaceData,
 ) -> BufferAttachResult {
@@ -528,19 +797,9 @@ fn try_attach_dmabuf(
 
     // This insert clones the dmabuf reference counter and as such ensures
     // that a strong reference to the dmabuf is kept.
-    let handle = insert_get_handle(&mut instance.bridge.dmabufs, &dmabuf);
+    let handle = insert_get_handle(&mut instance.bridge.dmabufs, dmabuf);
 
-    let already_attached = unsafe {
-        env.call_method_unchecked(
-            obj,
-            (WLCSurface_class, "attachDmabuf", "(J)Z"),
-            ReturnType::Primitive(Primitive::Boolean),
-            &[jvalue { j: handle }],
-        )
-        .unwrap()
-        .z()
-        .unwrap()
-    };
+    let already_attached = jsurface.attach_dmabuf(env, handle).unwrap();
 
     if already_attached {
         return BufferAttachResult::Success;
@@ -551,64 +810,41 @@ fn try_attach_dmabuf(
         Err(_) => return BufferAttachResult::Error,
     };
 
-    unsafe {
-        env.call_method_unchecked(
-            obj,
-            (WLCSurface_class, "attachNewDmabuf", "(JJII)V"),
-            ReturnType::Primitive(Primitive::Void),
-            &[
-                jvalue { j: handle },
-                jvalue {
-                    j: (image as usize) as jlong,
-                },
-                jvalue { i: width },
-                jvalue { i: height },
-            ],
-        )
+    jsurface
+        .attach_new_dmabuf(env, handle, image.addr() as jlong, width, height)
         .unwrap();
-    }
 
     BufferAttachResult::Success
 }
 
-fn jptr_to_dmabuf(ptr: jlong) -> Option<&'static Dmabuf> {
-    if ptr == 0 {
-        return None;
-    }
-    let ptr: *mut Dmabuf = (ptr as usize) as *mut Dmabuf;
-    let r = unsafe { &mut *ptr };
-    Some(r)
-}
-
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    deleteDmabuf")]
-pub extern "system" fn delete_dmabuf<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    let dmabuf = match jptr_to_dmabuf(handle) {
-        Some(d) => d,
-        None => return,
-    };
+fn delete_dmabuf<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    dmabuf_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "deleteDmabuf")?;
+    let dmabuf = jptr_to_ref::<Dmabuf>(dmabuf_handle).ok_or_else(|| {
+        BridgeError::Null("deleteDmabuf: dmabufHandle is null")
+    })?;
 
     instance.bridge.dmabufs.retain(|d| **d != *dmabuf);
+
+    Ok(())
 }
 
 // Proxy to call the try_attach_* family of functions
 fn try_attach_buffer(
     instance: &mut WaylandCraft,
-    env: &mut JNIEnv,
-    obj: &JObject,
+    env: &mut Env,
+    jsurface: &WLCSurface,
     buf: &WlBuffer,
     surf_data: &SurfaceData,
 ) -> Result<(), ()> {
     type TryAttachFn = fn(
         instance: &mut WaylandCraft,
-        env: &mut JNIEnv,
-        obj: &JObject,
+        env: &mut Env,
+        jsurface: &WLCSurface,
         buf: &WlBuffer,
         surf_data: &SurfaceData,
     ) -> BufferAttachResult;
@@ -616,7 +852,7 @@ fn try_attach_buffer(
     let funcs: [TryAttachFn; 3] =
         [try_attach_shm, try_attach_single_pixel, try_attach_dmabuf];
     for func in funcs {
-        let result = func(instance, env, obj, buf, surf_data);
+        let result = func(instance, env, jsurface, buf, surf_data);
         match result {
             BufferAttachResult::NotManaged => continue,
             BufferAttachResult::Success => return Ok(()),
@@ -627,31 +863,20 @@ fn try_attach_buffer(
     unreachable!("Buffer did not match any attachment mechanism!")
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    updateSurfaceData")]
-pub extern "system" fn updateSurfaceData<'l>(
-    mut env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    obj: JObject<'l>,
-) {
-    let instance = jptr_to_instance(ptr);
-    let handle: jlong = env
-        .get_field_unchecked(
-            &obj,
-            (WLCSurface_class, "handle", "J"),
-            ReturnType::Primitive(Primitive::Long),
-        )
-        .unwrap()
-        .j()
-        .unwrap();
+fn update_surface_data<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    jsurface: WLCSurface<'local>,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "updateSurfaceData")?;
 
-    let surface = match jptr_to_wlsurface(handle) {
-        Some(s) => s,
-        None => return,
-    };
+    let handle = jsurface.handle(env)?;
+    let surface = jptr_to_ref::<WlSurface>(handle).ok_or_else(|| {
+        BridgeError::Null("updateSufaceData: surfaceHandle is null")
+    })?;
 
-    with_states(&surface, |data| {
+    with_states(surface, |data| {
         let mut attr_guard = data.cached_state.get::<SurfaceAttributes>();
         let attr = attr_guard.deref_mut().current();
 
@@ -665,7 +890,7 @@ pub extern "system" fn updateSurfaceData<'l>(
         };
 
         if let Some(buf) = maybe_buf {
-            let r = try_attach_buffer(instance, &mut env, &obj, buf, data);
+            let r = try_attach_buffer(instance, env, &jsurface, buf, data);
             if r.is_err() {
                 eprintln!("Buffer attach failed!");
                 remove_buf = true;
@@ -677,130 +902,92 @@ pub extern "system" fn updateSurfaceData<'l>(
         }
 
         if remove_buf {
-            unsafe {
-                env.call_method_unchecked(
-                    &obj,
-                    (WLCSurface_class, "removeBuffer", "()V"),
-                    ReturnType::Primitive(Primitive::Void),
-                    &[],
-                )
-                .unwrap();
-            }
+            jsurface.remove_buffer(env).unwrap();
         }
 
         let mut vp_data_guard = data.cached_state.get::<ViewportCachedState>();
         let vp_data = vp_data_guard.deref_mut().current();
 
         if let Some(src) = vp_data.src {
-            unsafe {
-                env.call_method_unchecked(
-                    &obj,
-                    (WLCSurface_class, "setViewportSrc", "(DDDD)V"),
-                    ReturnType::Primitive(Primitive::Void),
-                    &[
-                        jvalue { d: src.loc.x },
-                        jvalue { d: src.loc.y },
-                        jvalue { d: src.size.w },
-                        jvalue { d: src.size.h },
-                    ],
+            jsurface
+                .set_viewport_src(
+                    env, src.loc.x, src.loc.y, src.size.w, src.size.h,
                 )
                 .unwrap();
-            }
         }
 
         if let Some(dst) = vp_data.dst {
-            unsafe {
-                env.call_method_unchecked(
-                    &obj,
-                    (WLCSurface_class, "setViewportDst", "(II)V"),
-                    ReturnType::Primitive(Primitive::Void),
-                    &[jvalue { i: dst.w }, jvalue { i: dst.h }],
-                )
-                .unwrap();
-            }
+            jsurface.set_viewport_dst(env, dst.w, dst.h).unwrap();
         }
     });
+
+    Ok(())
 }
 
-fn jptr_to_toplevel(ptr: jlong) -> &'static mut ToplevelSurface {
-    let ptr: *mut ToplevelSurface = (ptr as usize) as *mut ToplevelSurface;
-    unsafe { &mut *ptr }
+fn toplevel_surface<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    toplevel_handle: jlong,
+) -> Result<jlong, BridgeError> {
+    let instance = jptr_to_instance!(instance, "toplevelSurface")?;
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelSurface")?;
+
+    let surface = toplevel.wl_surface();
+
+    Ok(insert_get_handle(&mut instance.bridge.surfaces, surface))
 }
 
-fn jptr_to_popup(ptr: jlong) -> &'static mut PopupSurface {
-    let ptr: *mut PopupSurface = (ptr as usize) as *mut PopupSurface;
-    unsafe { &mut *ptr }
+fn popup_surface<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    popup_handle: jlong,
+) -> Result<jlong, BridgeError> {
+    let instance = jptr_to_instance!(instance, "popupSurface")?;
+    let popup = jptr_to_popup!(popup_handle, "popupSurface")?;
+
+    let surface = popup.wl_surface();
+
+    Ok(insert_get_handle(&mut instance.bridge.surfaces, surface))
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelSurface")]
-pub extern "system" fn toplevelSurface<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) -> jlong {
-    let instance = jptr_to_instance(ptr);
-    let toplevel: &mut ToplevelSurface = jptr_to_toplevel(handle);
-    let surface: &WlSurface = toplevel.wl_surface();
+fn popup_parent<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    popup_handle: jlong,
+) -> Result<jlong, BridgeError> {
+    let instance = jptr_to_instance!(instance, "popupParent")?;
+    let popup = jptr_to_popup!(popup_handle, "popupParent")?;
 
-    insert_get_handle(&mut instance.bridge.surfaces, surface)
-}
-
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    popupSurface")]
-pub extern "system" fn popupSurface<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) -> jlong {
-    let instance = jptr_to_instance(ptr);
-    let popup: &mut PopupSurface = jptr_to_popup(handle);
-    let surface: &WlSurface = popup.wl_surface();
-
-    insert_get_handle(&mut instance.bridge.surfaces, surface)
-}
-
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    popupParent")]
-pub extern "system" fn popupParent<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) -> jlong {
-    let instance = jptr_to_instance(ptr);
-    let popup: &mut PopupSurface = jptr_to_popup(handle);
-    let parent_surface: Option<WlSurface> = popup.get_parent_surface();
-    if parent_surface.is_none() {
-        return 0;
-    }
-    let parent_surface: WlSurface = parent_surface.unwrap();
+    let parent_surface = match popup.get_parent_surface() {
+        None => return Ok(0),
+        Some(parent_surface) => parent_surface,
+    };
 
     for toplevel in &instance.bridge.toplevels {
         if *toplevel.wl_surface() == parent_surface {
-            return get_handle(&instance.bridge.toplevels, toplevel);
+            return Ok(get_handle(&instance.bridge.toplevels, toplevel));
         }
     }
 
     for popup in &instance.bridge.popups {
         if *popup.wl_surface() == parent_surface {
-            return get_handle(&instance.bridge.popups, popup);
+            return Ok(get_handle(&instance.bridge.popups, popup));
         }
     }
 
-    0
+    Ok(0)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    popupOffset")]
-pub extern "system" fn popupOffset<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) -> jarray {
-    let popup: &mut PopupSurface = jptr_to_popup(handle);
+fn popup_offset<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    popup_handle: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let popup = jptr_to_popup!(popup_handle, "popupOffset")?;
+
     let mut offset: [jint; 2] = [0, 0];
 
     popup.with_cached_state(|state| {
@@ -812,79 +999,36 @@ pub extern "system" fn popupOffset<'l>(
         }
     });
 
-    let array = env.new_int_array(2).unwrap();
-    env.set_int_array_region(&array, 0, &offset).unwrap();
-    array.into_raw()
+    let array = JIntArray::new(env, 2)?;
+    array.set_region(env, 0, &offset)?;
+    Ok(array)
 }
 
-fn get_or_create_surface<'l>(
-    env: &mut JNIEnv<'l>,
-    state: &mut BridgeState,
-    bridge_obj: &JObject<'l>,
-    surface: &WlSurface,
-) -> JObject<'l> {
-    let handle = insert_get_handle(&mut state.surfaces, surface);
-    let sig = "(J)Ldev/evvie/waylandcraft/bridge/WLCSurface;";
-    unsafe {
-        env.call_method_unchecked(
-            bridge_obj,
-            (WaylandCraftBridge_class, "getOrCreateSurface", sig),
-            ReturnType::Object,
-            &[jvalue { j: handle }],
-        )
-        .unwrap()
-        .l()
-        .unwrap()
-    }
-}
+fn update_surface_tree<'local>(
+    env: &mut Env<'local>,
+    this: WaylandCraftBridge<'local>,
+    instance: jlong,
+    surface: WLCSurface<'local>,
+) -> Result<WLCSurface<'local>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "updateSurfaceTrees")?;
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    updateSurfaceTree")]
-pub extern "system" fn updateSurfaceTree<'l>(
-    mut env: JNIEnv<'l>,
-    bridge_obj: JObject<'l>,
-    root: JObject<'l>,
-) -> jobject {
-    let instance_ptr: jlong = env
-        .get_field_unchecked(
-            &bridge_obj,
-            (WaylandCraftBridge_class, "instance", "J"),
-            ReturnType::Primitive(Primitive::Long),
-        )
-        .unwrap()
-        .j()
-        .unwrap();
+    let handle = surface.handle(env)?;
+    let surface = jptr_to_ref::<WlSurface>(handle).ok_or_else(|| {
+        BridgeError::Null("updateSufaceTree: surface is not alive")
+    })?;
 
-    let instance = jptr_to_instance(instance_ptr);
-
-    let handle: jlong = env
-        .get_field_unchecked(
-            &root,
-            (WLCSurface_class, "handle", "J"),
-            ReturnType::Primitive(Primitive::Long),
-        )
-        .unwrap()
-        .j()
-        .unwrap();
-
-    let surface =
-        jptr_to_wlsurface(handle).expect("updateSurfaceTree surface alive");
-
-    let mut last_child: JObject = JObject::null();
+    let mut last_child = WLCSurface::null();
 
     with_surface_tree_upward(
-        &surface,
+        surface,
         None,
         |surface, _data, _parent| {
             TraversalAction::DoChildren(Some(surface.clone()))
         },
         |surface, data, parent| {
-            let obj = get_or_create_surface(
-                &mut env,
-                &mut instance.bridge,
-                &bridge_obj,
-                surface,
-            );
+            let handle =
+                insert_get_handle(&mut instance.bridge.surfaces, surface);
+            let surface = this.get_or_create_surface(env, handle).unwrap();
 
             // Set the WLCSurface parentHandle
             let parent_handle = if let Some(p) = parent {
@@ -892,58 +1036,22 @@ pub extern "system" fn updateSurfaceTree<'l>(
             } else {
                 0
             };
-            env.set_field_unchecked(
-                &obj,
-                (WLCSurface_class, "parentHandle", "J"),
-                JValue::Long(parent_handle),
-            )
-            .unwrap();
+
+            surface.set_parent_handle(env, parent_handle).unwrap();
 
             // Set last child to point to this current surface
-            if !last_child.as_raw().is_null() {
-                env.set_field_unchecked(
-                    &last_child,
-                    (
-                        WLCSurface_class,
-                        "nextChild",
-                        "Ldev/evvie/waylandcraft/bridge/WLCSurface;",
-                    ),
-                    JValue::Object(&obj),
-                )
-                .unwrap();
+            if !last_child.is_null() {
+                last_child.set_next_child(env, &surface).unwrap();
             }
 
             // Set this surfaces nextChild to null
-            env.set_field_unchecked(
-                &obj,
-                (
-                    WLCSurface_class,
-                    "nextChild",
-                    "Ldev/evvie/waylandcraft/bridge/WLCSurface;",
-                ),
-                JValue::Object(&JObject::null()),
-            )
-            .unwrap();
+            surface.set_next_child(env, WLCSurface::null()).unwrap();
 
             // Set this surfaces prevChild to the last child
-            env.set_field_unchecked(
-                &obj,
-                (
-                    WLCSurface_class,
-                    "prevChild",
-                    "Ldev/evvie/waylandcraft/bridge/WLCSurface;",
-                ),
-                JValue::Object(&last_child),
-            )
-            .unwrap();
+            surface.set_prev_child(env, &last_child).unwrap();
 
             // Mark this surface as visited
-            env.set_field_unchecked(
-                &obj,
-                (WLCSurface_class, "visited", "Z"),
-                JValue::Bool(1),
-            )
-            .unwrap();
+            surface.set_visited(env, true).unwrap();
 
             // Set subsurface location
             let (sx, sy) = if data.cached_state.has::<SubsurfaceCachedState>() {
@@ -955,184 +1063,159 @@ pub extern "system" fn updateSurfaceTree<'l>(
                 (0, 0)
             };
 
-            env.set_field_unchecked(
-                &obj,
-                (WLCSurface_class, "xoff", "I"),
-                JValue::Int(sx),
-            )
-            .unwrap();
+            surface.set_xoff(env, sx).unwrap();
+            surface.set_yoff(env, sy).unwrap();
 
-            env.set_field_unchecked(
-                &obj,
-                (WLCSurface_class, "yoff", "I"),
-                JValue::Int(sy),
-            )
-            .unwrap();
-
-            last_child = obj;
+            last_child = surface;
         },
         |_surface, _data, _parent| true,
     );
 
-    last_child.into_raw()
+    Ok(last_child)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerMotion")]
-pub extern "system" fn pointerMotion<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
+fn pointer_motion<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     x: jdouble,
     y: jdouble,
-) {
-    let instance = jptr_to_instance(ptr);
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerMotion")?;
     instance.state.seat.pointer_motion(x, y);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerMotionFocus")]
-pub extern "system" fn pointerMotionFocus<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
+fn pointer_motion_focus<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    surface_handle: jlong,
     x: jdouble,
     y: jdouble,
-) {
-    let instance = jptr_to_instance(ptr);
-    let surface = jptr_to_wlsurface(handle);
-
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerMotionFocus")?;
+    let surface = jptr_to_ref(surface_handle);
     instance.state.seat.pointer_motion_focus(surface, x, y);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerRelMotion")]
-pub extern "system" fn pointerRelMotion<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
+fn pointer_rel_motion<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     dx: jdouble,
     dy: jdouble,
-) {
-    let instance = jptr_to_instance(ptr);
-
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerRelMotion")?;
     instance.state.seat.pointer_relative_motion(dx, dy);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    maybePointerLock")]
-pub extern "system" fn maybePointerLock<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) -> jboolean {
-    let instance = jptr_to_instance(ptr);
-    let surface = match jptr_to_wlsurface(handle) {
-        Some(s) => s,
-        None => return 0,
+fn maybe_pointer_lock<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    surface_handle: jlong,
+) -> Result<jboolean, BridgeError> {
+    let instance = jptr_to_instance!(instance, "maybePointerLock")?;
+    let Some(surface) = jptr_to_ref(surface_handle) else {
+        return Ok(false);
     };
 
-    instance.state.seat.pointer_lock(&surface) as jboolean
+    Ok(instance.state.seat.pointer_lock(surface))
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerUnlock")]
-pub extern "system" fn pointerUnlock<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn pointer_unlock<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerUnlock")?;
+    instance.state.seat.pointer_unlock();
 
-    instance.state.seat.pointer_unlock()
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerLeave")]
-pub extern "system" fn pointerLeave<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn pointer_leave<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerLeave")?;
     instance.state.seat.pointer_motion_focus(None, 0.0, 0.0);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerButton")]
-pub extern "system" fn pointerButton<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
+fn pointer_button<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     button: jint,
     state: jint,
-) -> jint {
-    let instance = jptr_to_instance(ptr);
+) -> Result<jint, BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerButton")?;
 
     let state = match state {
         0 => ButtonState::Released,
         1 => ButtonState::Pressed,
-        _ => unreachable!(),
+        _ => return Err(BridgeError::UnknownPointerButton(state)),
     };
 
-    instance.state.seat.pointer_button(button as u32, state) as jint
+    Ok(instance.state.seat.pointer_button(button as u32, state) as jint)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    pointerAxis")]
-pub extern "system" fn pointerAxis<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
+fn pointer_axis<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     axis: jint,
     value: jdouble,
-) {
-    let instance = jptr_to_instance(ptr);
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "pointerAxis")?;
 
     let axis = match axis {
         0 => Axis::VerticalScroll,
         1 => Axis::HorizontalScroll,
         _ => {
-            return;
+            return Err(BridgeError::UnknownScrollDirection(axis));
         }
     };
 
     instance.state.seat.pointer_axis(axis, value);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    cursorShape")]
-pub extern "system" fn cursorShape<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jint {
-    let instance = jptr_to_instance(ptr);
+fn cursor_shape<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<jint, BridgeError> {
+    let instance = jptr_to_instance!(instance, "cursorShape")?;
 
-    match instance.state.seat.cursor_shape {
+    let shape = match instance.state.seat.cursor_shape {
         Some(shape) => shape as jint,
         None => -1,
-    }
-}
-
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    keyboardFocus")]
-pub extern "system" fn keyboardFocus<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    let toplevel: Option<ToplevelSurface> = if handle != 0 {
-        Some(jptr_to_toplevel(handle).clone())
-    } else {
-        None
     };
 
-    let surface = toplevel.as_ref().map(|t| t.wl_surface().clone());
+    Ok(shape)
+}
+
+fn keyboard_focus<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    surface_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "keyboardFocus")?;
+    let toplevel: Option<&ToplevelSurface> = jptr_to_ref(surface_handle);
+
+    let surface = toplevel.map(|t| t.wl_surface().clone());
 
     // Update the client gaining keyboard focus with the clipboard contents
     let client = surface.as_ref().and_then(|s| s.client());
@@ -1168,77 +1251,77 @@ pub extern "system" fn keyboardFocus<'l>(
         .for_each(|t| {
             t.send_pending_configure();
         });
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    keyboardActivate")]
-pub extern "system" fn keyboardActivate<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn keyboard_activate<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "keyboardActivate")?;
     instance.state.seat.activate_keyboard();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    keyboardDeactivate")]
-pub extern "system" fn keyboardDeactivate<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn keyboard_deactivate<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "keyboardDeactivate")?;
     instance.state.seat.deactivate_keyboard();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    keyboardInput")]
-pub extern "system" fn keyboardInput<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
+fn keyboard_input<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     scancode: jint,
     action: jint,
-) {
-    let instance = jptr_to_instance(ptr);
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "keyboardInput")?;
 
     let scancode = scancode as u32;
     let action = match action {
         0 => KeyState::Released,
         1 => KeyState::Pressed,
         _ => {
-            return;
+            return Err(BridgeError::UnknownKeyboardState(action));
         }
     };
 
     instance.state.seat.keyboard_key(scancode, action);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    keyboardUpdate")]
-pub extern "system" fn keyboardUpdate<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
+fn keyboard_update<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     scancode: jint,
-    press: jboolean,
-) {
-    let instance = jptr_to_instance(ptr);
+    pressed: jboolean,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "keyboardUpdate")?;
     instance
         .state
         .seat
-        .keyboard_update_xkb(scancode as u32, press == JNI_TRUE);
+        .keyboard_update_xkb(scancode as u32, pressed);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    fullscreened")]
-pub extern "system" fn fullscreened<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+fn fullscreened<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jlong>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "fullscreened")?;
 
     let mut handles: Vec<jlong> = vec![];
     for toplevel in instance.state.xdg_state.toplevel_surfaces() {
@@ -1247,143 +1330,138 @@ pub extern "system" fn fullscreened<'l>(
                 .map(|s| s.states.contains(xdg_toplevel::State::Fullscreen))
                 .unwrap_or(false)
         });
+
         if !fullscreen {
             continue;
         }
 
-        let handle =
-            insert_get_handle(&mut instance.bridge.toplevels, toplevel);
-        handles.push(handle);
+        handles
+            .push(insert_get_handle(&mut instance.bridge.toplevels, toplevel));
     }
 
-    let array = env.new_long_array(handles.len() as jsize).unwrap();
-    env.set_long_array_region(&array, 0, &handles).unwrap();
-    array.into_raw()
+    let array = JLongArray::new(env, handles.len())?;
+    array.set_region(env, 0, &handles)?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    outputSize")]
-pub extern "system" fn outputSize<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(handle);
+fn output_size<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "outputSize")?;
 
     let size = instance.state.output.size();
     let size: [jint; 2] = [size.w, size.h];
 
-    let array = env.new_int_array(2).unwrap();
-    env.set_int_array_region(&array, 0, &size).unwrap();
-    array.into_raw()
+    let array = JIntArray::new(env, 2)?;
+    array.set_region(env, 0, &size)?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    outputBounds")]
-pub extern "system" fn outputBounds<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(handle);
+fn output_bounds<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "outputBounds")?;
 
     let bounds = instance.state.output.bounds();
     let bounds: [jint; 2] = [bounds.w, bounds.h];
 
-    let array = env.new_int_array(2).unwrap();
-    env.set_int_array_region(&array, 0, &bounds).unwrap();
-    array.into_raw()
+    let array = JIntArray::new(env, 2)?;
+    array.set_region(env, 0, &bounds)?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    outputResize")]
-pub extern "system" fn outputResize<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
+fn output_resize<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     width: jint,
     height: jint,
-) {
-    let instance = jptr_to_instance(handle);
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "outputResize")?;
     let size = instance.state.output.size();
     let width_changed = size.w != width;
     let height_changed = size.h != height;
 
-    if width <= 0 || height <= 0 {
-        return;
+    if width < 1 {
+        return Err(BridgeError::NonPositiveWidth);
+    } else if height < 1 {
+        return Err(BridgeError::NonPositiveHeight);
     }
 
     if !width_changed && !height_changed {
-        return;
+        return Ok(());
     }
 
     instance.state.output.resize(width, height);
 
     for toplevel in instance.state.xdg_state.toplevel_surfaces() {
         toplevel.with_pending_state(|state| {
-            let fullscreen =
-                state.states.contains(xdg_toplevel::State::Fullscreen);
-            if fullscreen {
+            if state.states.contains(xdg_toplevel::State::Fullscreen) {
                 state.size = Some(Size::new(width, height));
             }
         });
+
         toplevel.send_pending_configure();
     }
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    outputSetBounds")]
-pub extern "system" fn outputSetBounds<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
+fn output_set_bounds<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
     width: jint,
     height: jint,
-) {
-    let instance = jptr_to_instance(handle);
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "outputSetBounds")?;
     let bounds = instance.state.output.bounds();
     let width_changed = bounds.w != width;
     let height_changed = bounds.h != height;
 
-    if width <= 0 || height <= 0 {
-        return;
+    if width < 1 {
+        return Err(BridgeError::NonPositiveWidth);
+    } else if height < 1 {
+        return Err(BridgeError::NonPositiveHeight);
     }
 
     if !width_changed && !height_changed {
-        return;
+        return Ok(());
     }
 
     instance.state.output.set_bounds(width, height);
 
     for toplevel in instance.state.xdg_state.toplevel_surfaces() {
         toplevel.with_pending_state(|state| {
-            let maximized =
-                state.states.contains(xdg_toplevel::State::Maximized);
-            if maximized {
+            if state.states.contains(xdg_toplevel::State::Maximized) {
                 state.size = Some(Size::new(width, height));
             }
         });
+
         toplevel.send_pending_configure();
     }
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    checkInputRegion")]
-pub extern "system" fn checkInputRegion<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
+fn check_input_region<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    surface_handle: jlong,
     x: jdouble,
     y: jdouble,
-) -> jboolean {
-    let surface = match jptr_to_wlsurface(handle) {
-        Some(s) => s,
-        None => return 0,
+) -> Result<jboolean, BridgeError> {
+    let Some(surface) = jptr_to_ref(surface_handle) else {
+        return Ok(false);
     };
 
     let point: Point<f64, Logical> = Point::new(x, y);
 
-    with_states(&surface, |data| {
+    Ok(with_states(surface, |data| {
         let mut attr_guard = data.cached_state.get::<SurfaceAttributes>();
         let attr = attr_guard.deref_mut().current();
         if let Some(r) = &attr.input_region {
@@ -1391,22 +1469,20 @@ pub extern "system" fn checkInputRegion<'l>(
         } else {
             true
         }
-    }) as jboolean
+    }))
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    surfaceXDGGeometry")]
-pub extern "system" fn surfaceXDGGeometry<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) -> jarray {
-    let surface = match jptr_to_wlsurface(handle) {
+fn surface_xdg_geometry<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    surface_handle: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let surface = match jptr_to_ref(surface_handle) {
         Some(s) => s,
-        None => return std::ptr::null_mut(),
+        None => return Ok(JIntArray::null()),
     };
 
-    let geometry: Option<[jint; 4]> = with_states(&surface, |states| {
+    let geometry: Option<[jint; 4]> = with_states(surface, |states| {
         let mut guard = states.cached_state.get::<SurfaceCachedState>();
         guard
             .current()
@@ -1415,22 +1491,21 @@ pub extern "system" fn surfaceXDGGeometry<'l>(
     });
 
     if let Some(geometry) = geometry {
-        let array = env.new_int_array(4).unwrap();
-        env.set_int_array_region(&array, 0, &geometry).unwrap();
-        array.into_raw()
+        let array = JIntArray::new(env, 4)?;
+        array.set_region(env, 0, &geometry)?;
+        Ok(array)
     } else {
-        std::ptr::null_mut()
+        Ok(JIntArray::null())
     }
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelTitle")]
-pub extern "system" fn toplevelTitle<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) -> jstring {
-    let toplevel = jptr_to_toplevel(handle);
+fn toplevel_title<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    toplevel_handle: jlong,
+) -> Result<JString<'local>, BridgeError> {
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelTitle")?;
+
     let surface = toplevel.wl_surface();
 
     let title = with_states(surface, |states| {
@@ -1440,24 +1515,24 @@ pub extern "system" fn toplevelTitle<'l>(
             .unwrap()
             .lock()
             .unwrap();
+
         attr_guard.title.clone()
     });
 
     if let Some(title) = title {
-        env.new_string(&title).unwrap().into_raw()
+        Ok(env.new_string(title)?)
     } else {
-        std::ptr::null_mut()
+        Ok(JString::null())
     }
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelAppID")]
-pub extern "system" fn toplevelAppID<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
-) -> jstring {
-    let toplevel = jptr_to_toplevel(handle);
+fn toplevel_app_id<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    toplevel_handle: jlong,
+) -> Result<JString<'local>, BridgeError> {
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelAppId")?;
+
     let surface = toplevel.wl_surface();
 
     let app_id = with_states(surface, |states| {
@@ -1467,69 +1542,70 @@ pub extern "system" fn toplevelAppID<'l>(
             .unwrap()
             .lock()
             .unwrap();
+
         attr_guard.app_id.clone()
     });
 
     if let Some(app_id) = app_id {
-        env.new_string(&app_id).unwrap().into_raw()
+        Ok(env.new_string(app_id)?)
     } else {
-        std::ptr::null_mut()
+        Ok(JString::null())
     }
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelResize")]
-pub extern "system" fn toplevelResize<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
+fn toplevel_resize<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    toplevel_handle: jlong,
     width: jint,
     height: jint,
     interactive: jboolean,
-) {
-    let toplevel = jptr_to_toplevel(handle);
+) -> Result<(), BridgeError> {
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelResize")?;
 
     toplevel.with_pending_state(|state| {
         state.size = Some(Size::new(width, height));
         state.states.unset(xdg_toplevel::State::Maximized);
         state.states.unset(xdg_toplevel::State::Fullscreen);
-        if interactive == JNI_TRUE {
+        if interactive {
             state.states.set(xdg_toplevel::State::Resizing);
         } else {
             state.states.unset(xdg_toplevel::State::Resizing);
         }
     });
+
     toplevel.send_pending_configure();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelResizeOvr")]
-pub extern "system" fn toplevelResizeOvr<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    handle: jlong,
+fn toplevel_resize_ovr<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    toplevel_handle: jlong,
     width: jint,
     height: jint,
-) {
-    let toplevel = jptr_to_toplevel(handle);
+) -> Result<(), BridgeError> {
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelResizeOvr")?;
 
     toplevel.with_pending_state(|state| {
         state.size = Some(Size::new(width, height));
         state.states.unset(xdg_toplevel::State::Resizing);
     });
+
     toplevel.send_pending_configure();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelMaximize")]
-pub extern "system" fn toplevelMaximize<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    let toplevel = jptr_to_toplevel(handle);
+fn toplevel_maximize<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    toplevel_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "toplevelMaximize")?;
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelMaximize")?;
 
     toplevel.with_pending_state(|state| {
         if state.states.contains(xdg_toplevel::State::Fullscreen) {
@@ -1539,242 +1615,193 @@ pub extern "system" fn toplevelMaximize<'l>(
         state.size = Some(output.bounds());
         state.states.set(xdg_toplevel::State::Maximized);
     });
+
     toplevel.send_configure();
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    toplevelFullscreen")]
-pub extern "system" fn toplevelFullscreen<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    let toplevel = jptr_to_toplevel(handle);
+fn toplevel_fullscreen<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    toplevel_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "toplevelFullscreen")?;
+    let toplevel = jptr_to_toplevel!(toplevel_handle, "toplevelFullscreen")?;
 
     toplevel.with_pending_state(|state| {
         let output = &instance.state.output;
         state.size = Some(output.size());
         state.states.set(xdg_toplevel::State::Fullscreen);
     });
+
     toplevel.send_configure();
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    freeSurface")]
-pub extern "system" fn freeSurface<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    remove_element(&mut instance.bridge.surfaces, handle);
+fn free_surface<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    surface_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "freeSurface")?;
+    remove_element(&mut instance.bridge.surfaces, surface_handle);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    freeToplevel")]
-pub extern "system" fn freeToplevel<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    remove_element(&mut instance.bridge.toplevels, handle);
+fn free_toplevel<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    toplevel_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "freeToplevel")?;
+    remove_element(&mut instance.bridge.toplevels, toplevel_handle);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    freePopup")]
-pub extern "system" fn freePopup<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
-    remove_element(&mut instance.bridge.popups, handle);
+fn free_popup<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    popup_handle: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "freePopup")?;
+    remove_element(&mut instance.bridge.popups, popup_handle);
+
+    Ok(())
 }
 
-#[allow(non_upper_case_globals)]
-const RawDesktopEntry_class: &str =
-    "dev/evvie/waylandcraft/desktop/RawDesktopEntry";
-
-fn raw_desktop_entry_to_java<'l>(
-    env: &mut JNIEnv<'l>,
+fn raw_desktop_entry_to_java<'local>(
+    env: &mut Env<'local>,
     entry: &RawDesktopEntry,
-) -> JObject<'l> {
-    macro_rules! to_jstr {
-        ($s:expr) => {
-            env.new_string($s).unwrap()
-        };
-    }
-    macro_rules! nullstr {
-        () => {
-            unsafe { JString::from_raw(std::ptr::null_mut()) }
-        };
-    }
-    macro_rules! to_jstr_opt {
-        ($s:expr) => {
-            match $s {
-                Some(s) => to_jstr!(s),
-                None => nullstr!(),
+) -> Result<JRawDesktopEntry<'local>, BridgeError> {
+    macro_rules! opt_to_jstring {
+        ($env:expr, $string:expr) => {
+            match $string {
+                Some(string) => JString::new($env, string),
+                None => Ok(JString::null()),
             }
         };
     }
 
-    let app_id: JString<'l> = to_jstr!(&entry.app_id);
-    let name: JString<'l> = to_jstr_opt!(&entry.name);
-    let generic_name: JString<'l> = to_jstr_opt!(&entry.generic_name);
-    let exec: JString<'l> = to_jstr_opt!(&entry.exec);
-    let exec_terminal: jboolean = entry.exec_terminal as jboolean;
-    let comment: JString<'l> = to_jstr_opt!(&entry.comment);
-    let visible: jboolean = entry.visible as jboolean;
-    let icon_path: JString<'l> = to_jstr_opt!(&entry.icon_path);
+    let app_id = JString::new(env, &entry.app_id)?;
+    let name = opt_to_jstring!(env, &entry.name)?;
+    let generic_name = opt_to_jstring!(env, &entry.generic_name)?;
+    let exec = opt_to_jstring!(env, &entry.exec)?;
+    let exec_terminal = entry.exec_terminal;
+    let comment = opt_to_jstring!(env, &entry.comment)?;
+    let visible = entry.visible;
+    let icon_path = opt_to_jstring!(env, &entry.icon_path)?;
 
-    let keywords: Vec<JString<'l>> =
-        entry.keywords.iter().map(|k| to_jstr!(k)).collect();
-    let kw_array = env
-        .new_object_array(
-            keywords.len() as jsize,
-            "java/lang/String",
-            JObject::null(),
-        )
-        .unwrap();
-    for (i, kw) in keywords.iter().enumerate() {
-        env.set_object_array_element(&kw_array, i as jsize, kw)
-            .unwrap();
+    let keywords = entry
+        .keywords
+        .iter()
+        .map(|keyword| JString::new(env, keyword))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let kw_array =
+        JObjectArray::<JString>::new(env, keywords.len(), &JString::null())?;
+
+    for (index, keyword) in keywords.iter().enumerate() {
+        kw_array.set_element(env, index, keyword)?;
     }
 
-    let categories: Vec<JString<'l>> =
-        entry.categories.iter().map(|c| to_jstr!(c)).collect();
-    let cat_array = env
-        .new_object_array(
-            categories.len() as jsize,
-            "java/lang/String",
-            JObject::null(),
-        )
-        .unwrap();
-    for (i, cat) in categories.iter().enumerate() {
-        env.set_object_array_element(&cat_array, i as jsize, cat)
-            .unwrap();
+    let categories = entry
+        .categories
+        .iter()
+        .map(|keyword| JString::new(env, keyword))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let cat_array =
+        JObjectArray::<JString>::new(env, categories.len(), &JString::null())?;
+
+    for (index, category) in categories.iter().enumerate() {
+        cat_array.set_element(env, index, category)?;
     }
 
-    let str_sig = "Ljava/lang/String;";
-    let str_arr_sig = "[Ljava/lang/String;";
-    let mut ctor_sig = String::new();
-    ctor_sig += "(";
-    ctor_sig += str_sig; // appId
-    ctor_sig += str_sig; // name
-    ctor_sig += str_sig; // genericName
-    ctor_sig += str_sig; // exec
-    ctor_sig += "Z"; // execTerminal
-    ctor_sig += str_sig; // comment
-    ctor_sig += str_arr_sig; // keywords
-    ctor_sig += str_arr_sig; // categories
-    ctor_sig += "Z"; // visible
-    ctor_sig += str_sig; // iconPath
-    ctor_sig += ")V";
-
-    let ctor_args = [
-        JValue::Object(&app_id),
-        JValue::Object(&name),
-        JValue::Object(&generic_name),
-        JValue::Object(&exec),
-        JValue::Bool(exec_terminal),
-        JValue::Object(&comment),
-        JValue::Object(&kw_array),
-        JValue::Object(&cat_array),
-        JValue::Bool(visible),
-        JValue::Object(&icon_path),
-    ];
-
-    env.new_object(RawDesktopEntry_class, ctor_sig, &ctor_args)
-        .unwrap()
+    Ok(JRawDesktopEntry::new(
+        env,
+        app_id,
+        name,
+        generic_name,
+        exec,
+        exec_terminal,
+        comment,
+        kw_array,
+        cat_array,
+        visible,
+        icon_path,
+    )?)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    loadDesktopEntry")]
-pub extern "system" fn loadDesktopEntry<'l>(
-    mut env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    jpath: JString<'l>,
-) -> jobject {
-    let instance = jptr_to_instance(ptr);
-    let path: String =
-        unsafe { env.get_string_unchecked(&jpath).unwrap() }.into();
-    let path: PathBuf = path.into();
+fn load_desktop_entry<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    path: JString<'local>,
+) -> Result<JRawDesktopEntry<'local>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "loadDesktopEntry")?;
+    let path: PathBuf = path.try_to_string(env)?.into();
     let entry = match instance.xdg.load_entry(path) {
         Some(e) => e,
-        None => return std::ptr::null_mut(),
+        None => return Ok(JRawDesktopEntry::null()),
     };
 
-    raw_desktop_entry_to_java(&mut env, &entry).into_raw()
+    raw_desktop_entry_to_java(env, &entry)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    loadDesktopEntries")]
-pub extern "system" fn loadDesktopEntries<'l>(
-    mut env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
+fn load_desktop_entries<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JObjectArray<'local, JRawDesktopEntry<'local>>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "loadDesktopEntries")?;
     let entries = instance.xdg.get_raw_entries();
-    let entries: Vec<JObject<'l>> = entries
+    let entries = entries
         .iter()
-        .map(|e| raw_desktop_entry_to_java(&mut env, e))
-        .collect();
+        .map(|e| raw_desktop_entry_to_java(env, e))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    let array = env
-        .new_object_array(
-            entries.len() as jsize,
-            RawDesktopEntry_class,
-            JObject::null(),
-        )
-        .unwrap();
-
-    for (i, ent) in entries.iter().enumerate() {
-        env.set_object_array_element(&array, i as jsize, ent)
-            .unwrap();
+    let array = JObjectArray::<JRawDesktopEntry>::new(
+        env,
+        entries.len(),
+        &JRawDesktopEntry::null(),
+    )?;
+    for (index, entry) in entries.iter().enumerate() {
+        array.set_element(env, index, entry)?;
     }
 
-    array.into_raw()
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    renderSVG")]
-pub extern "system" fn renderSVG<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    path: JString<'l>,
+fn render_svg<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    path: JString<'local>,
     width: jint,
     height: jint,
-    ptr: jlong,
-) -> jboolean {
-    let path: String =
-        unsafe { env.get_string_unchecked(&path).unwrap() }.into();
-    let path: PathBuf = path.into();
-    let data = (ptr as usize) as *mut u8;
+    buffer_ptr: jlong,
+) -> Result<jboolean, BridgeError> {
+    let path: PathBuf = path.try_to_string(env)?.into();
+    let data = (buffer_ptr as usize) as *mut u8;
     let width = width as u32;
     let height = height as u32;
 
-    render_svg(path, width, height, data).is_some() as jboolean
+    Ok(crate::svg::render_svg(path, width, height, data).is_some())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    execApp")]
-pub extern "system" fn execApp<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    app_id: JString<'l>,
-) -> jboolean {
-    let instance = jptr_to_instance(ptr);
-    let app_id: String =
-        unsafe { env.get_string_unchecked(&app_id).unwrap() }.into();
+fn exec_app<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    app_id: JString<'local>,
+) -> Result<jboolean, BridgeError> {
+    let instance = jptr_to_instance!(instance, "execApp")?;
+    let app_id = app_id.try_to_string(env)?;
 
     let env_vars = vec![
         ("WAYLAND_DISPLAY".into(), instance.state.socket.clone()),
@@ -1782,128 +1809,118 @@ pub extern "system" fn execApp<'l>(
         ("ELECTRON_OZONE_PLATFORM_HINT".into(), "auto".into()),
         ("GDK_BACKEND".into(), "wayland".into()),
     ];
-    instance.xdg.exec_app(app_id, env_vars) as jboolean
+
+    Ok(instance.xdg.exec_app(app_id, env_vars))
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    setKeymapDefault")]
-pub extern "system" fn setKeymapDefault<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn set_keymap_default<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "setKeymapDefault")?;
     instance.state.seat.change_keymap_to_default();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    exportKeymap")]
-pub extern "system" fn exportKeymap<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jstring {
-    let instance = jptr_to_instance(ptr);
+fn export_keymap<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JString<'local>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "exportKeymap")?;
     let keymap_str = instance.state.seat.export_keymap();
-    env.new_string(keymap_str).unwrap().into_raw()
+    Ok(JString::new(env, keymap_str)?)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    setKeymapFromStr")]
-pub extern "system" fn setKeymapFromStr<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    keymap_str: JString<'l>,
-) -> jboolean {
-    let instance = jptr_to_instance(ptr);
-    let keymap_str: String =
-        unsafe { env.get_string_unchecked(&keymap_str).unwrap() }.into();
-
-    instance.state.seat.change_keymap_from_str(keymap_str) as jboolean
+fn set_keymap_from_str<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    keymap: JString<'local>,
+) -> Result<jboolean, BridgeError> {
+    let instance = jptr_to_instance!(instance, "setKeymapFromStr")?;
+    let keymap_str = keymap.try_to_string(env)?;
+    Ok(instance.state.seat.change_keymap_from_str(keymap_str))
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    checkDndRequest")]
-pub extern "system" fn checkDndRequest<'l>(
-    env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jarray {
-    let instance = jptr_to_instance(ptr);
-    let request = match instance.state.data.check_dnd_request() {
-        Some(r) => r,
-        None => return std::ptr::null_mut(),
+fn check_dnd_request<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<JPrimitiveArray<'local, jint>, BridgeError> {
+    let instance = jptr_to_instance!(instance, "checkDndRequest")?;
+    let serial = match instance.state.data.check_dnd_request() {
+        Some(r) => r as jint,
+        None => return Ok(JIntArray::null()),
     };
 
-    let serial = request as jint;
-    let array = env.new_int_array(1).unwrap();
-    env.set_int_array_region(&array, 0, &[serial]).unwrap();
-    array.into_raw()
+    let array = JIntArray::new(env, 1)?;
+    array.set_region(env, 0, &[serial])?;
+    Ok(array)
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    checkDndActive")]
-pub extern "system" fn checkDndActive<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jboolean {
-    let instance = jptr_to_instance(ptr);
-    instance.state.data.dnd.is_some() as jboolean
+fn check_dnd_active<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<jboolean, BridgeError> {
+    let instance = jptr_to_instance!(instance, "checkDndActive")?;
+    Ok(instance.state.data.dnd.is_some())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    dndCancel")]
-pub extern "system" fn dndCancel<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn dnd_cancel<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "dndCancel")?;
     instance.state.data.dnd_cancel();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    dndDrop")]
-pub extern "system" fn dndDrop<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) {
-    let instance = jptr_to_instance(ptr);
+fn dnd_drop<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "dndDrop")?;
     instance.state.data.dnd_drop();
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    dndMotion")]
-pub extern "system" fn dndMotion<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-    handle: jlong,
+fn dnd_motion<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+    surface_handle: jlong,
     x: jdouble,
     y: jdouble,
-) {
-    let instance = jptr_to_instance(ptr);
-    let surface = jptr_to_wlsurface(handle);
+) -> Result<(), BridgeError> {
+    let instance = jptr_to_instance!(instance, "dndMotion")?;
+    let surface = jptr_to_ref(surface_handle);
     instance.state.data.dnd_motion(surface, x, y);
+
+    Ok(())
 }
 
-#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
-    dndIcon")]
-pub extern "system" fn dndIcon<'l>(
-    _env: JNIEnv<'l>,
-    _class: JClass<'l>,
-    ptr: jlong,
-) -> jlong {
-    let instance = jptr_to_instance(ptr);
-    let dnd = match &instance.state.data.dnd {
-        Some(d) => d,
-        None => return 0,
+fn dnd_icon<'local>(
+    _env: &mut Env<'local>,
+    _class: JClass<'local>,
+    instance: jlong,
+) -> Result<jlong, BridgeError> {
+    let instance = jptr_to_instance!(instance, "dndIcon")?;
+    let Some(dnd) = &instance.state.data.dnd else {
+        return Ok(0);
     };
+
     match dnd.icon.as_ref() {
-        Some(icon) => insert_get_handle(&mut instance.bridge.surfaces, icon),
-        None => 0,
+        Some(icon) => {
+            Ok(insert_get_handle(&mut instance.bridge.surfaces, icon))
+        }
+        None => Ok(0),
     }
 }

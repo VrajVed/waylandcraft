@@ -102,8 +102,8 @@ public class WaylandCraftBridge {
 		return null;
 	}
 	
-	private WaylandCraftBridge(long handle) {
-		this.instance = handle;
+	private WaylandCraftBridge(long instance) {
+		this.instance = instance;
 	}
 	
 	public static WaylandCraftBridge start() {
@@ -116,13 +116,13 @@ public class WaylandCraftBridge {
 		return new WaylandCraftBridge(handle);
 	}
 	
-	protected WLCToplevel getOrCreateToplevel(long handle) {
+	protected WLCToplevel getOrCreateToplevel(long topLevelHandle) {
 		for(WLCToplevel toplevel : toplevels) {
-			if(toplevel.getHandle() == handle) return toplevel;
+			if(toplevel.getHandle() == topLevelHandle) return toplevel;
 		}
-		WLCToplevel toplevel = new WLCToplevel(handle);
+		WLCToplevel toplevel = new WLCToplevel(topLevelHandle);
 		
-		long surfaceHandle = toplevelSurface(this.instance, handle);
+		long surfaceHandle = toplevelSurface(this.instance, topLevelHandle);
 		WLCSurface surface = getOrCreateSurface(surfaceHandle);
 		toplevel.surface = surface;
 		
@@ -276,7 +276,7 @@ public class WaylandCraftBridge {
 		for(long handle : toplevelHandles) {
 			WLCToplevel toplevel = getOrCreateToplevel(handle);
 			WLCSurface root = toplevel.getSurfaceTree();
-			toplevel.lastChild = updateSurfaceTree(root);
+			toplevel.lastChild = updateSurfaceTree(this.instance, root);
 			
 			updateGeometry(toplevel);
 			toplevel.title = toplevelTitle(toplevel.getHandle());
@@ -302,7 +302,7 @@ public class WaylandCraftBridge {
 			popup.offsetY = offset[1];
 			
 			WLCSurface root = popup.getSurfaceTree();
-			popup.lastChild = updateSurfaceTree(root);
+			popup.lastChild = updateSurfaceTree(this.instance, root);
 			updateGeometry(popup);
 		}
 		
@@ -627,8 +627,8 @@ public class WaylandCraftBridge {
 		return loadDesktopEntries(instance);
 	}
 	
-	public boolean renderSVG(File file, int width, int height, long ptr) {
-		return renderSVG(file.getAbsolutePath(), width, height, ptr);
+	public boolean renderSVG(File file, int width, int height, long bufferPtr) {
+		return renderSVG(file.getAbsolutePath(), width, height, bufferPtr);
 	}
 	
 	public boolean execApp(String appId) {
@@ -673,18 +673,18 @@ public class WaylandCraftBridge {
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
 	private static native void update(long instance);
 	private static native String socket(long instance);
-	private static native void sendFrame(long handle);
+	private static native void sendFrame(long surfaceHandle);
 	
 	private static native void updateSurfaceData(long instance, WLCSurface surface);
 	
 	private static native long[] toplevels(long instance);
-	private static native long toplevelSurface(long instance, long handle);
-	private static native String toplevelTitle(long handle);
-	private static native String toplevelAppID(long handle);
+	private static native long toplevelSurface(long instance, long topLevelHandle);
+	private static native String toplevelTitle(long topLevelHandle);
+	private static native String toplevelAppID(long topLevelHandle);
 	// Resize toplevel
-	private static native void toplevelResize(long handle, int width, int height, boolean interactive);
+	private static native void toplevelResize(long topLevelHandle, int width, int height, boolean interactive);
 	// Resize toplevel override, keep maximized and fullscreen state, stop interactive resize
-	private static native void toplevelResizeOvr(long handle, int width, int height);
+	private static native void toplevelResizeOvr(long topLevelHandle, int width, int height);
 	
 	// Collect all toplevels that have sent a minimize request and clear the list
 	private static native long[] minimizeReq(long instance);
@@ -705,30 +705,30 @@ public class WaylandCraftBridge {
 	// All toplevels that are currently in fullscreen
 	private static native long[] fullscreened(long instance);
 	
-	private static native void toplevelMaximize(long instance, long handle);
-	private static native void toplevelFullscreen(long instance, long handle);
+	private static native void toplevelMaximize(long instance, long topLevelHandle);
+	private static native void toplevelFullscreen(long instance, long topLevelHandle);
 	
 	private static native long[] popups(long instance);
-	private static native long popupSurface(long instance, long handle);
+	private static native long popupSurface(long instance, long topLevelHandle);
 	// Query the parent of a popup
 	// Returned handle is a handle either to a toplevel or another popup
-	private static native long popupParent(long instance, long handle);
+	private static native long popupParent(long instance, long topLevelHandle);
 	// Query popup local offset coordinates
 	// Returns two-element list containing x,y
-	private static native int[] popupOffset(long handle);
+	private static native int[] popupOffset(long popupHandle);
 	
 	// Query the xdg_surface window geometry of a toplevel or popup.
 	// handle should be the handle to the root WLCSurface
 	// Returns four-element array containing x,y,width,height which could be null
-	private static native int[] surfaceXDGGeometry(long handle);
+	private static native int[] surfaceXDGGeometry(long surfaceHandle);
 	
 	// Release a dmabuf wl_buffer
-	private static native void deleteDmabuf(long instance, long handle);
+	private static native void deleteDmabuf(long instance, long dmabufHandle);
 	
 	// Updates the surface tree given by the root surface
 	// This changes the doubly linked list of the WLCSurfaces.
 	// The returned surface is the last (most deeply nested) child
-	private native WLCSurface updateSurfaceTree(WLCSurface root);
+	private native WLCSurface updateSurfaceTree(long instance, WLCSurface root);
 	
 	// Check if point in surface input region
 	private static native boolean checkInputRegion(long surfaceHandle, double x, double y);
@@ -737,12 +737,12 @@ public class WaylandCraftBridge {
 	private static native void pointerMotion(long instance, double x, double y);
 	
 	// Create pointer motion event
-	private static native void pointerMotionFocus(long instance, long handle, double x, double y);
+	private static native void pointerMotionFocus(long instance, long surfaceHandle, double x, double y);
 	
 	// Send relative pointer motion to surface with pointer focus
 	private static native void pointerRelMotion(long instance, double dx, double dy);
 	
-	private static native boolean maybePointerLock(long instance, long handle);
+	private static native boolean maybePointerLock(long instance, long surfaceHandle);
 	
 	private static native void pointerUnlock(long instance);
 	
@@ -779,14 +779,14 @@ public class WaylandCraftBridge {
 	// Update virtual output maximum window bounds
 	private static native void outputSetBounds(long instance, int width, int height);
 	
-	private static native void freeSurface(long instance, long handle);
-	private static native void freeToplevel(long instance, long handle);
-	private static native void freePopup(long instance, long handle);
+	private static native void freeSurface(long instance, long surfaceHandle);
+	private static native void freeToplevel(long instance, long toplevelHandle);
+	private static native void freePopup(long instance, long popupHandle);
 	
 	private static native RawDesktopEntry loadDesktopEntry(long instance, String path);
 	private static native RawDesktopEntry[] loadDesktopEntries(long instance);
 	
-	private static native boolean renderSVG(String path, int width, int height, long ptr);
+	private static native boolean renderSVG(String path, int width, int height, long bufferPtr);
 	
 	private static native boolean execApp(long instance, String appId);
 	
@@ -798,7 +798,7 @@ public class WaylandCraftBridge {
 	private static native boolean checkDndActive(long instance);
 	private static native void dndCancel(long instance);
 	private static native void dndDrop(long instance);
-	private static native void dndMotion(long instance, long surface, double x, double y);
+	private static native void dndMotion(long instance, long surfaceHandle, double x, double y);
 	private static native long dndIcon(long instance);
 	
 }
