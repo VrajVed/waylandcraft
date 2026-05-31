@@ -3,12 +3,15 @@ package dev.evvie.waylandcraft.mixin;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 
 import dev.evvie.waylandcraft.CursorShape;
 import dev.evvie.waylandcraft.WaylandCraft;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
@@ -37,6 +40,11 @@ public class GuiMixin {
 		if(crosshair == null) crosshair = original;
 		
 		context.blitSprite(pipeline, crosshair, x, y, width, height);
+	}
+	
+	@Inject(method = "extractCrosshair", at = @At("HEAD"), cancellable = true)
+	public void crosshairExtractCancel(GuiGraphicsExtractor context, DeltaTracker tracker, CallbackInfo info) {
+		if(WaylandCraft.instance.cursorShape == CursorShape.HIDE) info.cancel();
 	}
 	
 	private @Nullable Identifier crosshairForCursor(@Nullable CursorShape cursor) {
