@@ -29,7 +29,7 @@ use smithay::{
     wayland::{
         compositor::{
             BufferAssignment, SubsurfaceCachedState, SurfaceAttributes,
-            SurfaceData, TraversalAction, with_states,
+            SurfaceData, TraversalAction, with_states, Damage,
             with_states as with_surface_data, with_surface_tree_upward,
         },
         dmabuf::get_dmabuf,
@@ -919,6 +919,31 @@ fn update_surface_data<'local>(
         if let Some(dst) = vp_data.dst {
             jsurface.set_viewport_dst(env, dst.w, dst.h).unwrap();
         }
+
+        jsurface.clear_damage(env).unwrap();
+        for damage in &attr.damage {
+            match damage {
+                Damage::Surface(d) => {
+                    jsurface.add_surface_damage(
+                        env,
+                        d.loc.x,
+                        d.loc.y,
+                        d.size.w,
+                        d.size.h
+                    ).unwrap();
+                },
+                Damage::Buffer(d) => {
+                    jsurface.add_buffer_damage(
+                        env,
+                        d.loc.x,
+                        d.loc.y,
+                        d.size.w,
+                        d.size.h
+                    ).unwrap();
+                },
+            }
+        }
+        attr.damage.clear();
     });
 
     Ok(())

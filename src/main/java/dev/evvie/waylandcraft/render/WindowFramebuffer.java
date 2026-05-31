@@ -31,6 +31,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
+import dev.evvie.waylandcraft.bridge.WLCSurface.SurfaceDamage;
 import dev.evvie.waylandcraft.bridge.WLCSurface.ViewportSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.DynamicUniformStorage;
@@ -56,7 +57,19 @@ public class WindowFramebuffer {
 		.build()
 	);
 	
+	public static final RenderPipeline DAMAGE_PIPELINE = RenderPipelines.register(
+		RenderPipeline.builder()
+		.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/damage"))
+		.withVertexShader(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window"))
+		.withFragmentShader(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window_damage"))
+		.withVertexFormat(DefaultVertexFormat.POSITION_TEX, VertexFormat.Mode.QUADS)
+		.withUniform("window_info", UniformType.UNIFORM_BUFFER)
+		.withCull(false)
+		.build()
+	);
+	
 	private static DynamicUniformStorage<WindowInfoUniform> uniformStorage = null;
+	private static boolean debugDamage = false;
 	
 	public final WLCSurface surfaceTree;
 	private RenderTarget target = null;
@@ -161,6 +174,37 @@ public class WindowFramebuffer {
 				element.vertexBuffer.close();
 			}
 		}
+		
+		if(debugDamage) drawDebugDamage(opaqueUniforms);
+	}
+	
+	private void drawDebugDamage(GpuBufferSlice opaqueUniforms) {
+		ArrayList<CompiledBufferDraw> damageElements = new ArrayList<>();
+		for(WLCSurface surface = surfaceTree; surface != null; surface = surface.getNextChild()) {
+			int sx = xoff + surface.xSubpos;
+			int sy = yoff + surface.ySubpos;
+			
+			for(SurfaceDamage damage : surface.getDamage()) {
+				damageElements.add(new BufferDraw(null, sx + damage.x(), sy + damage.y(), damage.width(), damage.height(), 0, 0, 0, 0, false).compile());
+			}
+		}
+		
+		try {
+			try(RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "window framebuffer damage", target.getColorTextureView(), OptionalInt.empty())) {
+				pass.setPipeline(DAMAGE_PIPELINE);
+				pass.setUniform("window_info", opaqueUniforms);
+				for(CompiledBufferDraw element : damageElements) {
+					pass.setVertexBuffer(0, element.vertexBuffer);
+					pass.setIndexBuffer(element.indexBuffer, element.indexType);
+					pass.drawIndexed(0, 0, element.indexCount, 1);
+				}
+			}
+		}
+		finally {
+			for(CompiledBufferDraw element : damageElements) {
+				element.vertexBuffer.close();
+			}
+		}
 	}
 	
 	private BufferDraw bakeSurface(WLCSurface surface, float x, float y) {
@@ -177,10 +221,10 @@ public class WindowFramebuffer {
 		
 		ViewportSource src = surface.getViewportSource();
 		if(src != null) {
-			crop_x1 = (float) (src.x / buf.width);
-			crop_y1 = (float) (src.y / buf.height);
-			crop_x2 = (float) ((src.x + src.width) / buf.width);
-			crop_y2 = (float) ((src.y + src.height) / buf.height);
+			crop_x1 = (float) (src.x() / buf.width);
+			crop_y1 = (float) (src.y() / buf.height);
+			crop_x2 = (float) ((src.x() + src.width()) / buf.width);
+			crop_y2 = (float) ((src.y() + src.height()) / buf.height);
 		}
 		
 		return new BufferDraw(buf.textureView, x, y, w, h, crop_x1, crop_y1, crop_x2, crop_y2, buf.format != BufferTexture.FORMAT_XRGB8888);

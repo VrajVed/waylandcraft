@@ -46,6 +46,9 @@ bind_java_type! {
             width: jint,
             height: jint
         ),
+        pub fn clear_damage(),
+        pub fn add_buffer_damage(x: jint, y: jint, width: jint, height: jint),
+        pub fn add_surface_damage(x: jint, y: jint, width: jint, height: jint),
     },
 }
 
